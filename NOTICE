@@ -1,0 +1,17 @@
+Clash Verge IP Checker Auto
+Notice and Attribution
+
+This repository is a personal adaptation of tombcato/clash-ip-checker.
+
+Original project:
+https://github.com/tombcato/clash-ip-checker
+
+Original license:
+GNU General Public License v3.0 (GPL-3.0)
+
+This repository preserves GPL-3.0 licensing for the covered work. The original
+authors and contributors retain copyright over their original contributions.
+Changes in this repository are maintained by this repository's maintainer.
+
+This repository is not an official release of tombcato/clash-ip-checker and is
+not endorsed by, affiliated with, or maintained by the original project author.

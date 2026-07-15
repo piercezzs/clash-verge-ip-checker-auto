@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clash Verge IP Checker</title>
+    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=action-edit-fix-20260715-3">
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+
+<body>
+    <main class="container" x-data="app()" x-init="init()">
+        <header class="topbar">
+            <div class="topbar-copy">
+                <span class="eyebrow">Local Console</span>
+                <h1>Clash Verge IP Checker</h1>
+                <p>本机订阅检测控制台</p>
+            </div>
+            <div class="topbar-actions">
+                <button class="secondary outline" @click="discover" :disabled="isRunning">刷新订阅</button>
+            </div>
+        </header>
+
+        <div class="workspace-grid">
+            <section class="tool-panel controls-panel">
+                <div class="controls-grid">
+                    <div class="control-column profile-panel">
+                        <div class="section-head">
+                            <h2>订阅</h2>
+                            <span x-show="context?.running" class="pill ok">运行中</span>
+                            <span x-show="context && !context.running" class="pill warn">未检测到进程</span>
+                        </div>
+
+                        <label>
+                            数据目录
+                            <input type="text" x-model="config.app_home" placeholder="自动发现">
+                        </label>
+
+                        <template x-if="notice">
+                            <small class="notice" x-text="notice"></small>
+                        </template>
+                        <template x-if="error">
+                            <small class="error-text" x-text="error"></small>
+                        </template>
+
+                        <div class="profile-summary">
+                            <span>主订阅 <strong x-text="supportedProfiles.length"></strong></span>
+                            <span x-show="unsupportedProfiles.length > 0">
+                                配置片段 <strong x-text="unsupportedProfiles.length"></strong>
+                            </span>
+                        </div>
+
+                        <label>
+                            主订阅
+                            <select class="profile-select" x-model="selectedUid"
+                                :disabled="isRunning || supportedProfiles.length === 0">
+                                <template x-for="profile in supportedProfiles" :key="profile.uid">
+                                    <option :value="profile.uid"
+                                        x-text="`${profile.name} · ${profile.type === 'remote' ? '远程' : '本地'}${profile.is_current ? ' · 当前' : ''}`">
+                                    </option>
+                                </template>
+                            </select>
+                            <p x-show="context && supportedProfiles.length === 0" class="empty-text">没有可检测的主订阅</p>
+                        </label>
+
+                        <details class="fragment-details" x-show="unsupportedProfiles.length > 0">
+                            <summary>配置片段 (<span x-text="unsupportedProfiles.length"></span>)</summary>
+                            <div class="fragment-list">
+                                <template x-for="profile in unsupportedProfiles" :key="profile.uid">
+                                    <div class="fragment-row">
+                                        <strong x-text="profile.name"></strong>
+                                        <span x-text="`${profile.type} · ${profile.reason}`"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div class="control-column settings-panel">
+                        <div class="section-head">
+                            <h2>检测</h2>
+                        </div>
+
+                        <fieldset>
+                            <label>
+                                <input type="checkbox" x-model="config.fast_mode">
+                                快速检测模式
+                            </label>
+                            <small class="field-help">使用 IPPure 查询，速度快；关闭后用浏览器检测，较慢但信息更完整。</small>
+
+                            <label>
+                                代理组
+                                <input type="text" x-model="config.selector_name" placeholder="auto">
+                            </label>
+
+                            <label x-show="selectedProfile && !selectedProfile.is_current">
+                                <input type="checkbox" x-model="config.temp_load_profile">
+                                临时加载非当前订阅检测
+                            </label>
+                            <small class="field-help" x-show="selectedProfile && selectedProfile.type === 'remote'">
+                                “刷新原订阅并检测”会先拉取远程订阅最新 YAML，再检测并生成新的 checked YAML；不会写回原订阅文件。
+                            </small>
+                            <small class="field-help" x-show="selectedProfile && selectedProfile.type === 'local'">
+                                本地订阅没有上游 URL，只能检测当前本地 YAML 内容。
+                            </small>
+                        </fieldset>
+
+                        <details>
+                            <summary>高级</summary>
+                            <label>
+                                Clash API
+                                <input type="text" x-model="config.clash_api_url" placeholder="http://127.0.0.1:9097">
+                            </label>
+                            <label>
+                                API 密钥
+                                <input type="password" x-model="config.clash_api_secret"
+                                    :placeholder="controllerSecretKnown ? '已从本机配置读取；通常不用填' : 'Clash 未设置密钥可留空'">
+                            </label>
+                            <small class="field-help">只有 Clash 设置里配置了 API 访问密钥时才需要；本机可读取时会自动使用。</small>
+                            <label>
+                                输出后缀
+                                <input type="text" x-model="config.output_suffix" placeholder="_checked">
+                            </label>
+                            <label>
+                                跳过关键词
+                                <input type="text" x-model="config.skip_keywords_str">
+                            </label>
+                            <label x-show="!config.fast_mode">
+                                <input type="checkbox" x-model="config.headless">
+                                隐藏浏览器窗口
+                            </label>
+                        </details>
+
+                        <div class="button-group" aria-label="检测操作">
+                            <button class="primary-action" @click="startCheck(false)"
+                                :disabled="isRunning || !selectedUid" :aria-busy="runningAction === 'current'">
+                                <span x-text="runningAction === 'current' ? '检测中' : '检测当前内容'"></span>
+                            </button>
+                            <button class="secondary secondary-action"
+                                x-show="selectedProfile && selectedProfile.type === 'remote'" @click="startCheck(true)"
+                                :disabled="isRunning || !selectedUid" :aria-busy="runningAction === 'refresh'">
+                                <span x-text="runningAction === 'refresh' ? '刷新检测中' : '刷新原订阅并检测'"></span>
+                            </button>
+                            <button @click="stopCheck" x-show="isRunning" class="secondary stop-action">停止</button>
+                        </div>
+                    </div>
+                </div>
+
+                <details class="existing-exports" x-show="exportedFiles.length > 0">
+                    <summary>
+                        <span>已有导出 YAML (<span x-text="exportedFiles.length"></span>)</span>
+                        <button class="small secondary outline" type="button"
+                            @click.stop.prevent="loadExportedFiles">刷新</button>
+                    </summary>
+                    <div class="export-file-list">
+                        <template x-for="file in exportedFiles" :key="file.filename">
+                            <div class="export-file-row">
+                                <div class="export-file-meta">
+                                    <strong x-text="file.filename"></strong>
+                                    <small x-text="`${formatFileSize(file.size)} · ${file.modified.replace('T', ' ')}`"></small>
+                                    <template x-if="file.mobile_subscription_url">
+                                        <div>
+                                            <input type="text" :value="file.mobile_subscription_url" readonly>
+                                            <button class="small secondary" @click="copyExportedFileUrl(file)"
+                                                :disabled="copyingExportedFile === file.filename"
+                                                :aria-busy="copyingExportedFile === file.filename">
+                                                <span
+                                                    x-text="copyingExportedFile === file.filename ? '复制中...' : '复制订阅 URL'"></span>
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <small class="field-help" x-show="!file.mobile_subscription_url">手机订阅 URL 仅在 LAN 启动模式下可用。</small>
+                                </div>
+                                <div class="export-file-qr" x-show="file.mobile_subscription_url">
+                                    <img :src="qrImageUrl(file.mobile_subscription_url)" alt="已有导出订阅二维码">
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </details>
+            </section>
+            <section x-show="nodes.length > 0" class="results-section">
+                <div class="results-header">
+                    <div class="results-title">
+                        <h3>节点列表 (<span x-text="nodes.length"></span>)</h3>
+                        <small x-show="resultMetaText" x-text="resultMetaText"></small>
+                        <small x-show="dedupeText" x-text="dedupeText"></small>
+                    </div>
+                    <div x-show="showProgress" class="progress-box">
+                        <progress :value="progress" :max="total"></progress>
+                        <div>
+                            <span x-text="currentNode"></span>
+                            <span x-text="`${progress}/${total}`"></span>
+                        </div>
+                    </div>
+                    <button class="small export-action" @click="exportYaml"
+                        :disabled="isExporting || selected.length === 0" :aria-busy="isExporting">
+                        <span x-text="isExporting ? '导出中...' : `导出选中 (${selected.length})`"></span>
+                    </button>
+                </div>
+
+                <div class="table-scroll">
+                    <table role="grid" class="nodes-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" @change="toggleAll" :checked="nodes.length > 0 && selected.length === nodes.length"></th>
+                                <th>节点名</th>
+                                <th>IP</th>
+                                <th>风控</th>
+                                <th x-show="config.fast_mode">共享</th>
+                                <th x-show="!config.fast_mode">Bot</th>
+                                <th>类型</th>
+                                <th>数据源</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="node in nodes" :key="node.id">
+                                <tr>
+                                    <td><input type="checkbox" :checked="selected.includes(node.id)" @change="toggleNode(node, $event)"></td>
+                                    <td class="node-name-cell">
+                                        <span x-show="editingId !== node.id" x-text="node.name" @dblclick="startEdit(node, $event)"
+                                            class="editable"></span>
+                                        <input x-show="editingId === node.id" x-model="editValue" @blur="saveEdit(node)"
+                                            @keyup.enter="saveEdit(node)" @keyup.escape="cancelEdit()" class="inline-edit"
+                                            :data-edit-node="node.id">
+                                    </td>
+                                    <td x-text="node.ip"></td>
+                                    <td><span :class="getRiskClass(node.risk)" x-text="node.risk"></span></td>
+                                    <td x-show="config.fast_mode"><span :class="getSharedClass(node.shared)"
+                                            x-text="node.shared || 'N/A'"></span></td>
+                                    <td x-show="!config.fast_mode"><span :class="getRiskClass(node.bot)"
+                                            x-text="node.bot || 'N/A'"></span></td>
+                                    <td x-text="`${node.type || ''}|${node.native || ''}`"></td>
+                                    <td x-text="node.source"></td>
+                                    <td>
+                                        <div class="row-actions">
+                                            <button x-show="editingId !== node.id" class="small outline"
+                                                @click="startEdit(node, $event)">编辑</button>
+                                            <button x-show="editingId === node.id" class="small outline save-action"
+                                                @mousedown.prevent @click="saveEdit(node)">保存</button>
+                                            <button x-show="editingId === node.id" class="small outline"
+                                                @mousedown.prevent @click="cancelEdit()">取消</button>
+                                            <button x-show="editingId !== node.id" class="small outline danger"
+                                                @click="deleteNode(node)">删除</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <dialog x-ref="exportModal">
+            <article>
+                <header>
+                    <button aria-label="Close" class="close" @click="$refs.exportModal.close()"></button>
+                    <h3>导出 YAML</h3>
+                </header>
+                <div class="mobile-export-panel" x-show="mobileSubscriptionUrl">
+                    <div class="mobile-qr">
+                        <img :src="qrImageUrl(mobileSubscriptionUrl)" alt="手机订阅二维码">
+                    </div>
+                    <div class="mobile-url-block">
+                        <label>
+                            手机订阅 URL
+                            <input type="text" x-model="mobileSubscriptionUrl" readonly>
+                        </label>
+                        <small class="field-help">用小火箭扫码或从 URL 添加订阅。</small>
+                        <button class="secondary" @click="copyMobileSubscriptionUrl" :disabled="isCopyingMobileUrl"
+                            :aria-busy="isCopyingMobileUrl">
+                            <span x-text="isCopyingMobileUrl ? '复制中...' : '复制手机订阅 URL'"></span>
+                        </button>
+                    </div>
+                </div>
+                <small class="field-help" x-show="!mobileSubscriptionUrl">手机订阅 URL/二维码仅在 LAN 启动模式下生成；当前仍可下载 YAML 或导入本机 Clash。</small>
+                <textarea class="export-textarea" x-model="exportedYaml" readonly></textarea>
+                <footer class="modal-actions">
+                    <button @click="downloadYaml">下载</button>
+                    <button class="secondary" @click="copyYaml" :disabled="isCopyingYaml" :aria-busy="isCopyingYaml">
+                        <span x-text="isCopyingYaml ? '复制中...' : '复制'"></span>
+                    </button>
+                    <button class="contrast" @click="importToClash" :disabled="isImporting" :aria-busy="isImporting">
+                        <span x-text="isImporting ? '导入中...' : '导入为新订阅'"></span>
+                    </button>
+                </footer>
+            </article>
+        </dialog>
+    </main>
+
+    <script src="/static/js/app.js?v=mobile-lan-gate-20260715"></script>
+</body>
+
+</html>
