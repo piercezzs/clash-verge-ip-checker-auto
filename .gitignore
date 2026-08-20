@@ -5,4 +5,5 @@ __pycache__/
 exports/
 .runtime/
 data/
+sync/.*.tmp
 *.log

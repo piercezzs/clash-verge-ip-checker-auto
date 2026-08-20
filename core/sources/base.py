@@ -2,7 +2,8 @@ import abc
 from typing import Dict, Optional
 
 class BaseCheckSource(abc.ABC):
-    def get_emoji(self, percentage_str):
+    @staticmethod
+    def get_emoji(percentage_str):
         try:
             val = float(percentage_str.replace('%', ''))
             # Logic from ipcheck.py with user approved thresholds

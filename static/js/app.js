@@ -19,6 +19,7 @@ function app() {
     loadedCheckedAt: "",
     loadedCached: 0,
     loadedTotal: 0,
+    loadedCacheTtlDays: 14,
     dedupeRemoved: 0,
     exportedFiles: [],
     isExporting: false,
@@ -33,6 +34,8 @@ function app() {
     exportUrl: "",
     mobileSubscriptionUrl: "",
     importUrl: "",
+    importStatus: "",
+    importMessage: "",
     eventSource: null,
     controllerSecretKnown: false,
     config: {
@@ -46,6 +49,7 @@ function app() {
       refresh_remote: false,
       headless: true,
       temp_load_profile: false,
+      force_refresh_ip_cache: false,
       output_suffix: "_checked",
       skip_keywords_str:
         "剩余,重置,到期,有效期,官网,网址,更新,公告,建议,新用户,无法订阅,邀请码,收藏,尝试,com",
@@ -54,6 +58,9 @@ function app() {
     async init() {
       window.addEventListener("beforeunload", () => this.closeSSE());
       this.$watch("selectedUid", async () => {
+        if (!this.isRunning) await this.loadProfileResults();
+      });
+      this.$watch("config.fast_mode", async () => {
         if (!this.isRunning) await this.loadProfileResults();
       });
       await this.discover();
@@ -102,7 +109,7 @@ function app() {
       const checkedAt = this.loadedCheckedAt
         ? this.loadedCheckedAt.replace("T", " ")
         : this.loadedCheckedDate;
-      return `加载检测记录：${checkedAt}，匹配 ${this.loadedCached}/${this.loadedTotal}`;
+      return `加载 ${this.loadedCacheTtlDays} 天内 IP 结果：${checkedAt}，匹配 ${this.loadedCached}/${this.loadedTotal}`;
     },
 
     get dedupeText() {
@@ -164,10 +171,15 @@ function app() {
         this.loadedCheckedAt = data.checked_at || "";
         this.loadedCached = data.cached || 0;
         this.loadedTotal = data.total || 0;
+        this.loadedCacheTtlDays = data.cache_ttl_days || 14;
+        const cacheWarning = data.cache_warning || "";
         if (data.checked_date) {
           this.setNodes(data.nodes || []);
           this.applyRecommendedSelection();
-          this.notice = `已加载最近检测记录 ${data.checked_date}，匹配 ${this.loadedCached}/${this.loadedTotal} 个节点`;
+          this.notice = `已加载 ${this.loadedCacheTtlDays} 天内最近 IP 结果 ${data.checked_date}，匹配 ${this.loadedCached}/${this.loadedTotal} 个节点`;
+        }
+        if (cacheWarning) {
+          this.notice = this.notice ? `${this.notice}；${cacheWarning}` : cacheWarning;
         }
       } catch (err) {
         this.error = `加载缓存失败: ${err.message}`;
@@ -189,6 +201,8 @@ function app() {
       this.exportedYaml = "";
       this.mobileSubscriptionUrl = "";
       this.importUrl = "";
+      this.importStatus = "";
+      this.importMessage = "";
       this.runningAction = refreshRemote ? "refresh" : "current";
 
       try {
@@ -250,11 +264,17 @@ function app() {
           this.notice = data.message;
         } else if (data.type === "complete") {
           const completed = data.total || this.total || this.progress;
+          const cacheHits = data.cache_hits || 0;
+          const freshQueries = data.fresh_queries || 0;
+          const partialResults = data.partial_results || 0;
+          const failures = data.failures || 0;
+          const cacheWarning = data.cache_warning || "";
           this.isRunning = false;
           this.runningAction = "";
           this.showProgress = false;
           this.currentNode = "";
-          this.notice = `检测完成：已处理 ${completed} 个节点，已选中 ${this.selected.length} 个推荐节点`;
+          this.notice = `检测完成：${completed} 个节点；复用 IP 缓存 ${cacheHits} 个，新查询 ${freshQueries} 个（无评分 ${partialResults} 个），失败 ${failures} 个；已选中 ${this.selected.length} 个推荐节点`;
+          if (cacheWarning) this.notice = `${this.notice}；${cacheWarning}`;
           this.closeSSE();
         } else if (data.type === "stopped") {
           this.isRunning = false;
@@ -387,8 +407,8 @@ function app() {
       ) {
         return null;
       }
-      const match = String(value).match(/\d+(\.\d+)?/);
-      return match ? Number(match[0]) : null;
+      const match = String(value).trim().match(/^(\d+(?:\.\d+)?)%$/);
+      return match ? Number(match[1]) : null;
     },
 
     startEdit(node, event = null) {
@@ -424,12 +444,19 @@ function app() {
     },
 
     async exportYaml() {
+      if (this.isRunning) {
+        this.notice = "检测任务执行中，完成或停止后再导出。";
+        return;
+      }
       if (!this.selected.length) {
         alert("请先选择节点");
         return;
       }
       if (this.isExporting) return;
       this.isExporting = true;
+      this.importUrl = "";
+      this.importStatus = "";
+      this.importMessage = "";
       try {
         const res = await fetch("/api/export", {
           method: "POST",
@@ -449,7 +476,20 @@ function app() {
         this.exportFilename = data.filename;
         this.exportUrl = data.url;
         this.mobileSubscriptionUrl = data.mobile_subscription_url || "";
-        this.importUrl = data.import_url;
+        this.importUrl = data.import_url || "";
+        this.importStatus = data.import_status || (this.importUrl ? "new" : "unknown");
+        const existingCount = Number(data.existing_profile_count) || 0;
+        const existingNames = data.existing_profile_names || [];
+        const existingName = existingNames[0] || `${this.selectedProfile?.name || "当前订阅"}${this.config.output_suffix}`;
+        if (this.importStatus === "existing") {
+          this.importMessage = existingCount > 1
+            ? `导出文件已覆盖；Clash Verge 中检测到 ${existingCount} 个对应订阅。请保留一个并刷新，删除多余项。`
+            : `导出文件已覆盖；Clash Verge 已有“${existingName}”。请到 Clash Verge 刷新该订阅，不要再次导入。`;
+        } else if (this.importStatus === "unknown") {
+          this.importMessage = data.import_lookup_warning || "导出文件已覆盖，但无法确认 Clash Verge 是否已有对应订阅；为避免重复，本次不提供一键导入。";
+        } else {
+          this.importMessage = "未检测到对应 checked 订阅；只需首次导入一次，后续导出请刷新已有订阅。";
+        }
         await this.loadExportedFiles();
         this.$refs.exportModal.showModal();
       } catch (err) {
@@ -529,12 +569,16 @@ function app() {
     },
 
     importToClash() {
-      if (!this.importUrl) {
+      if (this.importStatus !== "new" || !this.importUrl) {
         alert("未生成导入链接");
         return;
       }
+      const importUrl = this.importUrl;
       this.isImporting = true;
-      window.location.href = this.importUrl;
+      this.importStatus = "launched";
+      this.importUrl = "";
+      this.importMessage = "已请求 Clash Verge 导入。请在 Clash Verge 中确认；本弹窗不会再次发起导入。";
+      window.location.href = importUrl;
       setTimeout(() => {
         this.isImporting = false;
       }, 1500);

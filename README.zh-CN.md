@@ -1,6 +1,6 @@
 # Clash Verge IP Checker Auto
 
-[English](README.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
+[English](README.md) | [简体中文](README.zh-CN.md)
 
 一个给 Clash Verge Rev 用的本地节点整理工具。它会读取本机配置，检测节点出口 IP 质量，导出新的 checked YAML，再通过导入链接把结果加回 Clash Verge。
 
@@ -17,7 +17,7 @@
 - 导出新的 checked YAML，不覆盖原订阅、不写回 `profiles.yaml`、不自动替换或启用当前订阅。
 - 手机订阅 URL/二维码只在 LAN 启动模式下生成；它只是导入导出 YAML 的入口，不负责启动服务。
 - LAN 模式只给可信设备下载本机导出的 YAML，不带登录层，也不适合公网。
-- 检测结果写入 SQLite `data/results.sqlite3`，下次可按订阅和节点内容复用最近结果。
+- 节点观测写入 SQLite `data/results.sqlite3`；成功的 IP 风险结果另存到可同步的 `sync/ip_reputation_cache.json`，相同出口 IP 在 14 天内可复用。
 - 默认只勾选已完成检测且风险分数不高于 30% 的节点；Pending、失败、未知和高风险节点默认不选。
 - 按出口 IP 去重，并保留导出文件列表，减少重复节点和手动筛选。
 
@@ -122,12 +122,15 @@ http://127.0.0.1:8080
 7. 如果自动识别代理组失败，手动输入真实 Clash 代理组名，例如 `GLOBAL`、`Proxy`、`PROXY`，或你的配置里使用的 selector 名称。
 8. 检查节点列表和自动选中的节点。
 9. 点击 `导出选中`。
-10. 在导出弹窗里下载、复制或导入生成的 YAML。
-11. 导入后，打开 Clash Verge，手动选择或启用新的 checked 订阅。
+10. 首次导出时，在弹窗里选择“首次导入到 Clash Verge”。
+11. 后续重复导出会覆盖同一个 checked YAML；如果 Clash Verge 已有对应订阅，页面不会再次发起新建导入，请在 Clash Verge 刷新已有 checked 订阅。
+12. 首次导入后，打开 Clash Verge，手动检查并选择或启用 checked 订阅。
 
 手机订阅 URL/二维码只在 LAN 启动模式下生成。普通本机启动时，页面不会给出手机可用的二维码；移动端只是导入这台电脑导出的 YAML，不能启动本工具。
 
 对 Remote 订阅，`刷新原订阅并检测` 会把最新远程 YAML 下载到内存中，检测后导出 checked YAML。它不会写回原始订阅文件。
+
+两种检测操作都会先通过 HTTPS 确认节点当前出口 IP，再复用 14 天内该 IP 的成功风险结果。需要强制刷新 IPPure 风险结果时，可在“高级”中勾选“忽略 14 天 IP 缓存，重新查询风险”；同一任务内相同出口 IP 仍只查询一次。
 
 ## 局域网访问
 
@@ -171,7 +174,8 @@ CLASH_CHECKER_PUBLIC_BASE_URL=http://192.168.1.23:8080 ./run_lan_mac.command
 本工具会读取本机 Clash Verge profile 元数据和 profile YAML 内容。生成的数据默认只保留在本机：
 
 - 导出的 YAML 写入 `exports/`。
-- 检测缓存和结果保存在 `data/results.sqlite3`。
+- 本机订阅与节点观测保存在 `data/results.sqlite3`。
+- 脱敏后的成功 IP 风险结果保存在 `sync/ip_reputation_cache.json`，只包含 IP、检测源、模式、风险字段和 UTC 检测时间，可在私有仓库中提交用于多设备同步。
 - 临时运行文件可能写入 `.runtime/`。
 
 本仓库已忽略这些路径：
@@ -190,7 +194,7 @@ git status --short --ignored
 git ls-files exports data .runtime
 ```
 
-预期结果：导出的 YAML、本地 SQLite 数据库和临时运行文件应处于 ignored 状态，不应出现在 `git ls-files` 里。
+预期结果：导出的 YAML、本地 SQLite 数据库和临时运行文件应处于 ignored 状态，不应出现在 `git ls-files` 里。`sync/ip_reputation_cache.json` 刻意不被忽略；只有确认仓库为私有且接受同步出口 IP 数据时才应提交。若以后公开仓库，应先将该文件恢复为空模板并清理相关 Git 历史。
 
 不要提交：
 
@@ -199,6 +203,8 @@ git ls-files exports data .runtime
 - 导出的 checked YAML。
 - `data/results.sqlite3`。
 - API secret、服务商 URL、token，或暴露订阅名称/订阅 URL 的截图。
+
+共享 IP JSON 不包含订阅名称、节点名称、节点配置或密钥。若 Git 合并冲突导致 JSON 无法解析，程序会保留原文件、不覆盖它，并继续把节点结果写入本机 SQLite；需要先手动解决冲突才能恢复共享缓存写入。
 
 ## 许可证与归属
 
@@ -212,7 +218,9 @@ git ls-files exports data .runtime
 
 - 订阅列表默认只显示可选择的 Remote 和 Local 主订阅。
 - Merge、script、rules 等不完整配置片段会显示在折叠区域，因为它们不是完整节点订阅。
-- 快速检测模式使用 IPPure HTTP 查询，是推荐默认模式。
+- 快速检测模式通过 HTTPS 获取 IPv4 出口，并优先使用 Clash mixed-port 的 SOCKS5 IPv4 通道调用 IPPure；返回地址必须与前置 IPv4 一致。
+- 如果 IPPure 仍返回 IPv6 或缺少风险分数，页面会明确显示“IPv6无评分”或“出口不一致”，且不会把该节点自动选为低风险节点。
+- 页面会优先显示当前节点上次确认 IP 所对应的 14 天内最近成功结果，而不是只读取订阅最近一次检测日。
 - 关闭快速检测后会使用浏览器检测，速度更慢，但能收集更完整的信息。
 - 导出选择默认包含风险分数已完成且不高于 30% 的节点。
 - Pending、失败、未知和风险大于 30% 的节点不会默认选中。
@@ -240,3 +248,7 @@ git ls-files exports data .runtime
 ### 导入后的订阅没有生效
 
 这是预期行为。导入只会创建新的 checked 订阅，Clash Verge 不一定会自动选中它。请打开 Clash Verge，检查后手动选择或启用该 checked 订阅。
+
+### 重复导出后是否需要再次导入
+
+不需要。项目会覆盖稳定的 `*_checked.yaml` 文件，并检测 Clash Verge 中是否已有指向该文件的订阅。已有订阅时，请在 Clash Verge 中刷新它；重复执行“安装配置”会新增订阅而不是覆盖旧订阅。如果已经产生多个重复项，请在 Clash Verge 中手动保留一个并删除其余项。

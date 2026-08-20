@@ -1,6 +1,6 @@
 # Clash Verge IP Checker Auto
 
-[English](README.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
+[English](README.md) | [简体中文](README.zh-CN.md)
 
 A local node cleanup helper for Clash Verge Rev. It reads local profiles, checks exit IP quality, exports a new checked YAML, and gives you an import link for adding the result back to Clash Verge.
 
@@ -17,7 +17,7 @@ Use it on your own machine or a trusted LAN. Do not expose it to the public inte
 - Exports a new checked YAML without overwriting the original subscription, editing `profiles.yaml`, or enabling the new subscription automatically.
 - Mobile subscription URL/QR code is generated only in LAN launch mode; it is just an import path for exported YAML, not a way to start the service.
 - LAN mode is for trusted devices to download this computer's exported YAML. There is no login layer and it is not for public hosting.
-- Stores check results in SQLite at `data/results.sqlite3`, so recent results can be reused by profile and node content.
+- Stores local node observations in SQLite at `data/results.sqlite3` and successful IP reputation results in the syncable `sync/ip_reputation_cache.json`; the same exit IP can reuse a result for 14 days.
 - Selects only completed nodes with risk scores at or below 30% by default; pending, failed, unknown, and higher-risk nodes stay unselected.
 - Deduplicates by exit IP and keeps an exported-file list to reduce repeated nodes and manual filtering.
 
@@ -122,12 +122,15 @@ Fast mode does not require launching Playwright Chromium.
 7. If auto proxy-group detection fails, enter the real Clash proxy group name, such as `GLOBAL`, `Proxy`, `PROXY`, or the selector name used by your profile.
 8. Review the checked node list and selected nodes.
 9. Click `Export selected`.
-10. In the export dialog, download/copy/import the generated YAML.
-11. After import, open Clash Verge and manually select or enable the new checked subscription if you want to use it.
+10. On the first export, choose `Import to Clash Verge for the first time` in the dialog.
+11. Later exports overwrite the same checked YAML. When the matching Clash Verge profile already exists, the page will not start another install; refresh the existing checked profile in Clash Verge instead.
+12. After the first import, open Clash Verge and manually review, select, or enable the checked profile.
 
 The mobile subscription URL/QR code is generated only in LAN launch mode. A normal localhost launch will not show a mobile-usable QR code. Mobile clients only import YAML exported by this computer; they do not start this tool.
 
 For Remote profiles, `Refresh source and check` downloads the latest remote YAML into memory, checks it, and exports a checked YAML. It does not write back to the original subscription file.
+
+Both check actions confirm the node's current exit IP over HTTPS before reusing a successful reputation result for that IP for up to 14 days. To force a fresh IPPure lookup, enable `Ignore 14-day IP cache` under Advanced; duplicate exit IPs are still queried only once within the same task.
 
 ## LAN Access
 
@@ -171,7 +174,8 @@ Important LAN boundaries:
 This tool reads local Clash Verge profile metadata and profile YAML contents. Generated data stays local by default:
 
 - Exported YAML files are written to `exports/`.
-- Check cache/results are stored in `data/results.sqlite3`.
+- Local profile and node observations are stored in `data/results.sqlite3`.
+- Sanitized successful IP reputation results are stored in `sync/ip_reputation_cache.json`. The file contains only the IP, source, mode, reputation fields, and UTC check time, so it can be committed in a private repository for multi-device sync.
 - Temporary runtime files may be written under `.runtime/`.
 
 These paths are ignored by Git in this repository:
@@ -190,7 +194,7 @@ git status --short --ignored
 git ls-files exports data .runtime
 ```
 
-Expected result: generated exports, local SQLite databases, and temporary runtime files should be ignored and should not appear in `git ls-files`.
+Expected result: generated exports, local SQLite databases, and temporary runtime files should be ignored and should not appear in `git ls-files`. `sync/ip_reputation_cache.json` is intentionally trackable; commit it only when the repository is private and synchronizing exit-IP data is acceptable. Empty the file and clean the related Git history before making the repository public.
 
 Do not commit:
 
@@ -199,6 +203,8 @@ Do not commit:
 - Exported checked YAML files.
 - `data/results.sqlite3`.
 - API secrets, provider URLs, tokens, or screenshots that reveal subscription names or URLs.
+
+The shared IP JSON does not contain profile names, node names, node configuration, or secrets. If a Git merge conflict makes the JSON invalid, the app preserves the file without overwriting it and continues saving node results to local SQLite until the conflict is resolved.
 
 ## License and Attribution
 
@@ -212,7 +218,9 @@ This is not an official upstream release. See [NOTICE](NOTICE) for attribution d
 
 - The subscription list only shows selectable Remote and Local main profiles by default.
 - Merge, script, rules, and other unsupported profile fragments are shown under the collapsed fragment section because they are not complete node subscriptions.
-- Fast check mode uses IPPure HTTP lookups and is the recommended default.
+- Fast check mode discovers the IPv4 exit over HTTPS and prefers a SOCKS5 IPv4 path through Clash mixed-port for IPPure; the returned address must match the preflight IPv4.
+- If IPPure still returns IPv6 or omits the risk score, the page reports `IPv6 unscored` or `exit mismatch` and does not auto-select that node as low risk.
+- The page prefers the latest successful result within 14 days for the node's last confirmed IP instead of limiting the view to the profile's latest check date.
 - Turning fast check off uses the browser-based checker, which is slower but can collect bot-score style data.
 - Export selection defaults to nodes with a completed risk score at or below 30%.
 - Pending, failed, unknown, and risk greater than 30% nodes are not selected by default.
@@ -240,3 +248,7 @@ Enter the selector/proxy group name manually. The group must be the group that C
 ### Imported subscription is not active
 
 This is expected. Import creates a new checked subscription, but Clash Verge may not auto-select it. Open Clash Verge and manually select or enable the checked subscription after reviewing it.
+
+### Should I import again after another export?
+
+No. The project overwrites the stable `*_checked.yaml` file and checks whether Clash Verge already has a profile pointing to that file. Refresh the existing profile in Clash Verge. Re-running the install-config action appends another profile instead of replacing the old one. If duplicates already exist, keep one and remove the others manually in Clash Verge.

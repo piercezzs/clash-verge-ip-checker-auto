@@ -89,6 +89,7 @@
                                 快速检测模式
                             </label>
                             <small class="field-help">使用 IPPure 查询，速度快；关闭后用浏览器检测，较慢但信息更完整。</small>
+                            <small class="field-help">每次会通过 HTTPS 确认当前 IPv4 出口；Clash mixed-port 会使用 SOCKS5 IPv4 查询 IPPure，相同 IP 可复用 14 天内的成功结果。</small>
 
                             <label>
                                 代理组
@@ -131,6 +132,11 @@
                                 <input type="checkbox" x-model="config.headless">
                                 隐藏浏览器窗口
                             </label>
+                            <label>
+                                <input type="checkbox" x-model="config.force_refresh_ip_cache">
+                                忽略 14 天 IP 缓存，重新查询风险
+                            </label>
+                            <small class="field-help">只忽略跨任务缓存；本次任务内相同出口 IP 仍只查询一次。</small>
                         </details>
 
                         <div class="button-group" aria-label="检测操作">
@@ -196,8 +202,8 @@
                         </div>
                     </div>
                     <button class="small export-action" @click="exportYaml"
-                        :disabled="isExporting || selected.length === 0" :aria-busy="isExporting">
-                        <span x-text="isExporting ? '导出中...' : `导出选中 (${selected.length})`"></span>
+                        :disabled="isRunning || isExporting || selected.length === 0" :aria-busy="isExporting">
+                        <span x-text="isRunning ? '检测中不可导出' : (isExporting ? '导出中...' : `导出选中 (${selected.length})`)"></span>
                     </button>
                 </div>
 
@@ -212,7 +218,7 @@
                                 <th x-show="config.fast_mode">共享</th>
                                 <th x-show="!config.fast_mode">Bot</th>
                                 <th>类型</th>
-                                <th>数据源</th>
+                                <th>数据源/状态</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -234,7 +240,7 @@
                                     <td x-show="!config.fast_mode"><span :class="getRiskClass(node.bot)"
                                             x-text="node.bot || 'N/A'"></span></td>
                                     <td x-text="`${node.type || ''}|${node.native || ''}`"></td>
-                                    <td x-text="node.source"></td>
+                                    <td x-text="node.status || node.source"></td>
                                     <td>
                                         <div class="row-actions">
                                             <button x-show="editingId !== node.id" class="small outline"
@@ -278,21 +284,24 @@
                     </div>
                 </div>
                 <small class="field-help" x-show="!mobileSubscriptionUrl">手机订阅 URL/二维码仅在 LAN 启动模式下生成；当前仍可下载 YAML 或导入本机 Clash。</small>
+                <small x-show="importMessage" :class="importStatus === 'unknown' ? 'error-text' : 'notice'"
+                    role="status" aria-live="polite" x-text="importMessage"></small>
                 <textarea class="export-textarea" x-model="exportedYaml" readonly></textarea>
                 <footer class="modal-actions">
                     <button @click="downloadYaml">下载</button>
                     <button class="secondary" @click="copyYaml" :disabled="isCopyingYaml" :aria-busy="isCopyingYaml">
                         <span x-text="isCopyingYaml ? '复制中...' : '复制'"></span>
                     </button>
-                    <button class="contrast" @click="importToClash" :disabled="isImporting" :aria-busy="isImporting">
-                        <span x-text="isImporting ? '导入中...' : '导入为新订阅'"></span>
+                    <button class="contrast" x-show="importStatus === 'new'" @click="importToClash"
+                        :disabled="isImporting" :aria-busy="isImporting">
+                        <span x-text="isImporting ? '正在打开 Clash Verge...' : '首次导入到 Clash Verge'"></span>
                     </button>
                 </footer>
             </article>
         </dialog>
     </main>
 
-    <script src="/static/js/app.js?v=mobile-lan-gate-20260715"></script>
+    <script src="/static/js/app.js?v=export-lock-20260820"></script>
 </body>
 
 </html>

@@ -15,12 +15,17 @@ from fastapi.responses import Response, StreamingResponse
 from ruamel.yaml import YAML
 import segno
 
-from core.clash_api import ClashController
-from desktop.importer import build_clash_import_url
+from core.clash_api import ClashController, proxy_endpoints_from_configs
+from desktop.importer import build_clash_import_url, find_matching_profiles
 from desktop.verge_profiles import discover_verge, load_profile_config, sanitize_name
 from schemas import ExportRequest, StartProfileRequest, UpdateNodeRequest
 from state import state
-from storage.results_store import get_latest_profile_results, node_key, save_node_result
+from storage.ip_cache import (
+    IP_CACHE_TTL_DAYS,
+    load_combined_ip_cache,
+    save_shared_ip_cache,
+)
+from storage.results_store import get_recent_profile_ip_results, node_key, save_node_result
 
 router = APIRouter(prefix="/api")
 yaml = YAML()
@@ -112,7 +117,7 @@ async def start_profile_check(request: StartProfileRequest):
 
 @router.post("/load-profile-results")
 async def load_profile_results(request: StartProfileRequest):
-    """Load same-day cached node results for the selected profile without checking."""
+    """Load fresh IP results through the profile's last known node-to-IP observations."""
     try:
         config_data, profile, _ = await load_profile_config(
             request.app_home,
@@ -126,7 +131,14 @@ async def load_profile_results(request: StartProfileRequest):
     skip_keywords = _parse_skip_keywords(request.config.get("skip_keywords_str", ""))
     proxies = config_data.get("proxies", [])
     active_proxies = [proxy for proxy in proxies if not _should_skip(proxy.get("name", ""), skip_keywords)]
-    checked_date, checked_at, cached_results = get_latest_profile_results(profile.uid, active_proxies)
+    cache_snapshot = load_combined_ip_cache()
+    mode = "fast" if bool(request.config.get("fast_mode", True)) else "browser"
+    checked_at, cached_results = get_recent_profile_ip_results(
+        profile.uid,
+        active_proxies,
+        cache_snapshot.entries,
+        mode=mode,
+    )
     nodes, _ = _build_nodes(active_proxies, cached_results)
 
     state.task_id = ""
@@ -148,8 +160,10 @@ async def load_profile_results(request: StartProfileRequest):
         "nodes": nodes,
         "cached": len(cached_results),
         "total": len(active_proxies),
-        "checked_date": checked_date,
+        "checked_date": checked_at[:10] if checked_at else "",
         "checked_at": checked_at,
+        "cache_ttl_days": IP_CACHE_TTL_DAYS,
+        "cache_warning": cache_snapshot.warning,
     }
 
 
@@ -162,6 +176,16 @@ async def _run_check(pending_items: list[tuple[int, dict[str, object]]], config:
     original_mode: str | None = None
     temp_loaded = False
     temp_generated_profile_path = str(config.get("temp_generated_profile_path") or "")
+    cache_hits = 0
+    fresh_queries = 0
+    partial_results = 0
+    failures = 0
+
+    cache_snapshot = load_combined_ip_cache()
+    cache_warning = cache_snapshot.warning
+    state.checker.configure_cache(cache_snapshot)
+    if cache_snapshot.warning:
+        state.events.append({"type": "message", "message": cache_snapshot.warning})
 
     try:
         configs = await controller.get_configs()
@@ -186,9 +210,17 @@ async def _run_check(pending_items: list[tuple[int, dict[str, object]]], config:
             raise RuntimeError("无法自动识别可切换的代理组，请手动填写 selector")
 
         await controller.set_mode("global")
-        port = await controller.get_running_port()
-        proxy_url = f"http://127.0.0.1:{port}"
+        proxy_endpoints = proxy_endpoints_from_configs(configs)
+        proxy_url = proxy_endpoints.request_url
+        ipv4_proxy_url = proxy_endpoints.ipv4_lookup_url
         fast_mode = bool(config.get("fast_mode", True))
+        if fast_mode and not proxy_endpoints.ipv4_lookup_forced:
+            state.events.append(
+                {
+                    "type": "message",
+                    "message": "Clash 当前只有 HTTP 代理端口，无法在客户端强制 IPPure 使用 IPv4；结果仍会校验出口 IP，不一致时不会作为有效评分。",
+                }
+            )
         source = "ippure"
         fallback = False
 
@@ -204,12 +236,22 @@ async def _run_check(pending_items: list[tuple[int, dict[str, object]]], config:
                 selector=selector,
                 controller=controller,
                 proxy_url=proxy_url,
+                ipv4_proxy_url=ipv4_proxy_url,
                 fast_mode=fast_mode,
                 source=source,
                 fallback=fallback,
+                force_refresh_ip_cache=bool(config.get("force_refresh_ip_cache", False)),
             )
             state.nodes[idx] = node_data
             save_node_result(state.profile_uid, state.profile_name, proxy, node_data)
+            if node_data.get("cache_hit"):
+                cache_hits += 1
+            elif node_data.get("source") == "ippure":
+                fresh_queries += 1
+                if node_data.get("score_status") not in {"", "available"}:
+                    partial_results += 1
+            else:
+                failures += 1
             state.progress += 1
             state.events.append(
                 {
@@ -230,10 +272,32 @@ async def _run_check(pending_items: list[tuple[int, dict[str, object]]], config:
             await controller.reload_config_path(state.runtime_path, force=True)
         if temp_generated_profile_path:
             Path(temp_generated_profile_path).unlink(missing_ok=True)
+        if state.checker.cache_writable and state.checker.cache_dirty:
+            try:
+                save_shared_ip_cache(state.checker.cache_entries())
+                state.checker.mark_cache_saved()
+            except OSError as error:
+                cache_warning = f"共享 IP 缓存保存失败，节点检测结果仍保存在本机 SQLite：{error}"
+                state.events.append(
+                    {
+                        "type": "message",
+                        "message": cache_warning,
+                    }
+                )
         state.is_running = False
         state.current_node = ""
         state.checker.clear_cache()
-        state.events.append({"type": "complete", "total": len(state.nodes)})
+        state.events.append(
+            {
+                "type": "complete",
+                "total": len(state.nodes),
+                "cache_hits": cache_hits,
+                "fresh_queries": fresh_queries,
+                "partial_results": partial_results,
+                "failures": failures,
+                "cache_warning": cache_warning,
+            }
+        )
 
 
 async def _check_node(
@@ -243,9 +307,11 @@ async def _check_node(
     selector: str,
     controller: ClashController,
     proxy_url: str,
+    ipv4_proxy_url: str,
     fast_mode: bool,
     source: str,
     fallback: bool,
+    force_refresh_ip_cache: bool,
 ) -> dict[str, object]:
     try:
         switched = await controller.switch_proxy(selector, name)
@@ -261,9 +327,18 @@ async def _check_node(
 
         await asyncio.sleep(1)
         if fast_mode:
-            result = await state.checker.check_fast(proxy_url, source=source, fallback=fallback)
+            result = await state.checker.check_fast(
+                proxy_url,
+                ipv4_proxy=ipv4_proxy_url,
+                source=source,
+                fallback=fallback,
+                force_refresh=force_refresh_ip_cache,
+            )
         else:
-            result = await state.checker.check_browser(proxy=proxy_url)
+            result = await state.checker.check_browser(
+                proxy=proxy_url,
+                force_refresh=force_refresh_ip_cache,
+            )
 
         status = _status_from_result(result)
         return {
@@ -278,6 +353,13 @@ async def _check_node(
             "native": result.get("ip_src", "❓"),
             "source": result.get("source", "unknown"),
             "status": status,
+            "cache_hit": bool(result.get("cache_hit", False)),
+            "cache_scope": result.get("cache_scope", ""),
+            "cached_at": result.get("cached_at", ""),
+            "score_status": result.get("score_status", ""),
+            "ip_version": result.get("ip_version", ""),
+            "expected_ip": result.get("expected_ip", ""),
+            "detail": result.get("error", ""),
             "proxy_config": proxy,
         }
     except Exception as error:
@@ -365,6 +447,8 @@ async def list_exports(http_request: Request):
 
 @router.post("/export")
 async def export_yaml(request: ExportRequest, http_request: Request):
+    if state.is_running:
+        raise HTTPException(status_code=409, detail="检测任务执行中，完成或停止后再导出")
     selected_nodes = [node for node in state.nodes if node["id"] in request.node_ids]
     if not selected_nodes:
         raise HTTPException(status_code=400, detail="请选择要导出的节点")
@@ -398,10 +482,14 @@ async def export_yaml(request: ExportRequest, http_request: Request):
 
     file_payload = _export_file_payload(filepath, http_request)
     import_name = f"{state.profile_name or base_name}{suffix}"
+    import_payload = _export_import_payload(
+        str(file_payload["absolute_url"]),
+        import_name,
+    )
     return {
         "yaml": yaml_content,
         **file_payload,
-        "import_url": build_clash_import_url(str(file_payload["absolute_url"]), import_name),
+        **import_payload,
     }
 
 
@@ -466,6 +554,46 @@ def _export_file_payload(path: Path, http_request: Request) -> dict[str, object]
         "size": stat.st_size,
         "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
         "modified_ts": stat.st_mtime,
+    }
+
+
+def _export_import_payload(file_url: str, import_name: str) -> dict[str, object]:
+    if not state.app_home:
+        return {
+            "import_status": "unknown",
+            "import_url": "",
+            "existing_profile_count": 0,
+            "existing_profile_names": [],
+            "import_lookup_warning": "未记录 Clash Verge 数据目录，无法确认是否已有对应订阅",
+        }
+
+    try:
+        context = discover_verge(state.app_home)
+    except Exception:
+        return {
+            "import_status": "unknown",
+            "import_url": "",
+            "existing_profile_count": 0,
+            "existing_profile_names": [],
+            "import_lookup_warning": "无法读取 Clash Verge 订阅列表，为避免重复，本次不提供一键导入",
+        }
+
+    matches = find_matching_profiles(file_url, context.profiles)
+    if matches:
+        return {
+            "import_status": "existing",
+            "import_url": "",
+            "existing_profile_count": len(matches),
+            "existing_profile_names": [profile.name for profile in matches],
+            "import_lookup_warning": "",
+        }
+
+    return {
+        "import_status": "new",
+        "import_url": build_clash_import_url(file_url, import_name),
+        "existing_profile_count": 0,
+        "existing_profile_names": [],
+        "import_lookup_warning": "",
     }
 
 
@@ -665,9 +793,21 @@ def _builtin_proxy_names() -> set[str]:
 
 
 def _status_from_result(result: dict[str, object]) -> str:
+    if result.get("cache_hit"):
+        return "♻️ IP缓存"
     source = result.get("source")
     if source == "ippure":
-        return "✅ IPPure"
+        score_status = result.get("score_status")
+        if score_status == "ipv6_unsupported":
+            return "⚠️ IPv6无评分"
+        if score_status == "ip_mismatch":
+            return "⚠️ 出口不一致"
+        if score_status in {"unavailable", "failed"}:
+            return "⚠️ IPPure无评分"
+        risk = str(result.get("pure_score") or "").strip()
+        if score_status == "available" or risk.endswith("%"):
+            return "✅ IPPure"
+        return "⚠️ IPPure无评分"
     if source in {"timeout", "failed"}:
         return "❌"
     return "⚠️"

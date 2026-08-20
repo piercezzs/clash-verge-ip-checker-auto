@@ -1,5 +1,59 @@
-import aiohttp
+from __future__ import annotations
+
 import urllib.parse
+from dataclasses import dataclass
+
+import aiohttp
+
+
+@dataclass(frozen=True)
+class ClashProxyEndpoints:
+    request_url: str
+    ipv4_lookup_url: str
+    ipv4_lookup_forced: bool
+
+
+def proxy_endpoints_from_configs(configs: dict[str, object]) -> ClashProxyEndpoints:
+    """Build request endpoints while preferring local IPv4 DNS over mixed-port SOCKS5."""
+    mixed_port = _positive_port(configs.get("mixed-port"))
+    if mixed_port:
+        return ClashProxyEndpoints(
+            request_url=f"http://127.0.0.1:{mixed_port}",
+            ipv4_lookup_url=f"socks5://127.0.0.1:{mixed_port}",
+            ipv4_lookup_forced=True,
+        )
+
+    http_port = _positive_port(configs.get("port"))
+    if http_port:
+        url = f"http://127.0.0.1:{http_port}"
+        return ClashProxyEndpoints(
+            request_url=url,
+            ipv4_lookup_url=url,
+            ipv4_lookup_forced=False,
+        )
+
+    socks_port = _positive_port(configs.get("socks-port"))
+    if socks_port:
+        return ClashProxyEndpoints(
+            request_url=f"http://127.0.0.1:{socks_port}",
+            ipv4_lookup_url=f"socks5://127.0.0.1:{socks_port}",
+            ipv4_lookup_forced=True,
+        )
+
+    return ClashProxyEndpoints(
+        request_url="http://127.0.0.1:7897",
+        ipv4_lookup_url="socks5://127.0.0.1:7897",
+        ipv4_lookup_forced=True,
+    )
+
+
+def _positive_port(value: object) -> int | None:
+    try:
+        port = int(value or 0)
+    except (TypeError, ValueError):
+        return None
+    return port if 0 < port <= 65535 else None
+
 
 class ClashController:
     def __init__(self, api_url, secret=""):
