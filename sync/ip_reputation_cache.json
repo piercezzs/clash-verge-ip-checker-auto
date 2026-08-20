@@ -13,13 +13,36 @@
     },
     "ippure:fast:103.175.98.76": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:10:17Z",
+      "checked_at": "2026-08-20T15:47:27Z",
       "full_string": "【🟡 机房|广播】",
       "ip": "103.175.98.76",
       "ip_attr": "机房",
       "ip_src": "广播",
       "mode": "fast",
       "pure_score": "41%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
+    "ippure:fast:104.192.92.181": {
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:59:50Z",
+      "full_string": "【🟡 机房|广播】",
+      "ip": "104.192.92.181",
+      "ip_attr": "机房",
+      "ip_src": "广播",
+      "mode": "fast",
+      "pure_score": "48%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
+    "ippure:fast:107.175.32.51": {
+      "checked_at": "2026-08-20T15:58:42Z",
+      "full_string": "【🔴 机房|原生】",
+      "ip": "107.175.32.51",
+      "ip_attr": "机房",
+      "ip_src": "原生",
+      "mode": "fast",
+      "pure_score": "82%",
       "shared_users": "N/A",
       "source": "ippure"
     },
@@ -47,7 +70,7 @@
     },
     "ippure:fast:118.166.14.199": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:11:14Z",
+      "checked_at": "2026-08-20T15:48:23Z",
       "full_string": "【⚪ 住宅|原生】",
       "ip": "118.166.14.199",
       "ip_attr": "住宅",
@@ -68,9 +91,32 @@
       "shared_users": "N/A",
       "source": "ippure"
     },
+    "ippure:fast:119.237.141.9": {
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:59:09Z",
+      "full_string": "【⚪ 住宅|原生】",
+      "ip": "119.237.141.9",
+      "ip_attr": "住宅",
+      "ip_src": "原生",
+      "mode": "fast",
+      "pure_score": "2%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
+    "ippure:fast:119.237.255.164": {
+      "checked_at": "2026-08-20T15:46:54Z",
+      "full_string": "【🟢 住宅|原生】",
+      "ip": "119.237.255.164",
+      "ip_attr": "住宅",
+      "ip_src": "原生",
+      "mode": "fast",
+      "pure_score": "19%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
     "ippure:fast:119.237.255.253": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:09:28Z",
+      "checked_at": "2026-08-20T15:46:44Z",
       "full_string": "【🟢 住宅|原生】",
       "ip": "119.237.255.253",
       "ip_attr": "住宅",
@@ -125,7 +171,7 @@
       "source": "ippure"
     },
     "ippure:fast:140.235.141.169": {
-      "checked_at": "2026-08-20T07:43:01Z",
+      "checked_at": "2026-08-20T15:49:46Z",
       "full_string": "【🟡 机房|广播】",
       "ip": "140.235.141.169",
       "ip_attr": "机房",
@@ -190,6 +236,30 @@
       "shared_users": "N/A",
       "source": "ippure"
     },
+    "ippure:fast:154.85.18.88": {
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:59:17Z",
+      "full_string": "【🟡 机房|广播】",
+      "ip": "154.85.18.88",
+      "ip_attr": "机房",
+      "ip_src": "广播",
+      "mode": "fast",
+      "pure_score": "45%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
+    "ippure:fast:154.85.19.84": {
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:59:22Z",
+      "full_string": "【🟡 机房|广播】",
+      "ip": "154.85.19.84",
+      "ip_attr": "机房",
+      "ip_src": "广播",
+      "mode": "fast",
+      "pure_score": "47%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
     "ippure:fast:155.248.247.206": {
       "checked_at": "2026-08-20T07:44:45Z",
       "full_string": "【🟡 机房|广播】",
@@ -245,6 +315,17 @@
       "shared_users": "N/A",
       "source": "ippure"
     },
+    "ippure:fast:185.220.238.191": {
+      "checked_at": "2026-08-20T15:47:24Z",
+      "full_string": "【🟡 机房|广播】",
+      "ip": "185.220.238.191",
+      "ip_attr": "机房",
+      "ip_src": "广播",
+      "mode": "fast",
+      "pure_score": "49%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
     "ippure:fast:193.122.84.74": {
       "checked_at": "2026-08-20T07:45:01Z",
       "full_string": "【🟡 机房|广播】",
@@ -258,7 +339,7 @@
     },
     "ippure:fast:202.8.9.242": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:10:12Z",
+      "checked_at": "2026-08-20T15:47:21Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "202.8.9.242",
       "ip_attr": "机房",
@@ -270,7 +351,7 @@
     },
     "ippure:fast:203.10.97.121": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:16:40Z",
+      "checked_at": "2026-08-20T16:05:06Z",
       "full_string": "【🔴 机房|广播】",
       "ip": "203.10.97.121",
       "ip_attr": "机房",
@@ -281,7 +362,8 @@
       "source": "ippure"
     },
     "ippure:fast:203.10.99.10": {
-      "checked_at": "2026-08-20T07:14:31Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:03:28Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "203.10.99.10",
       "ip_attr": "机房",
@@ -292,7 +374,8 @@
       "source": "ippure"
     },
     "ippure:fast:203.10.99.11": {
-      "checked_at": "2026-08-20T07:14:04Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:03:15Z",
       "full_string": "【🟡 机房|广播】",
       "ip": "203.10.99.11",
       "ip_attr": "机房",
@@ -303,7 +386,8 @@
       "source": "ippure"
     },
     "ippure:fast:203.10.99.12": {
-      "checked_at": "2026-08-20T07:14:06Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:03:17Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "203.10.99.12",
       "ip_attr": "机房",
@@ -315,7 +399,7 @@
     },
     "ippure:fast:203.10.99.26": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:14:39Z",
+      "checked_at": "2026-08-20T16:03:33Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "203.10.99.26",
       "ip_attr": "机房",
@@ -326,7 +410,8 @@
       "source": "ippure"
     },
     "ippure:fast:203.10.99.27": {
-      "checked_at": "2026-08-20T07:14:10Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:03:21Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "203.10.99.27",
       "ip_attr": "机房",
@@ -337,7 +422,8 @@
       "source": "ippure"
     },
     "ippure:fast:203.10.99.28": {
-      "checked_at": "2026-08-20T07:14:12Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:03:22Z",
       "full_string": "【🔴 机房|广播】",
       "ip": "203.10.99.28",
       "ip_attr": "机房",
@@ -348,7 +434,8 @@
       "source": "ippure"
     },
     "ippure:fast:203.10.99.34": {
-      "checked_at": "2026-08-20T07:12:17Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:01:21Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "203.10.99.34",
       "ip_attr": "机房",
@@ -359,7 +446,8 @@
       "source": "ippure"
     },
     "ippure:fast:203.10.99.35": {
-      "checked_at": "2026-08-20T07:16:09Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:04:40Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "203.10.99.35",
       "ip_attr": "机房",
@@ -370,7 +458,8 @@
       "source": "ippure"
     },
     "ippure:fast:203.10.99.36": {
-      "checked_at": "2026-08-20T07:16:11Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:04:41Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "203.10.99.36",
       "ip_attr": "机房",
@@ -382,7 +471,7 @@
     },
     "ippure:fast:203.10.99.42": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:16:14Z",
+      "checked_at": "2026-08-20T16:04:45Z",
       "full_string": "【⚫ 机房|广播】",
       "ip": "203.10.99.42",
       "ip_attr": "机房",
@@ -393,7 +482,8 @@
       "source": "ippure"
     },
     "ippure:fast:203.175.14.32": {
-      "checked_at": "2026-08-20T07:09:38Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:46:56Z",
       "full_string": "【🟡 机房|原生】",
       "ip": "203.175.14.32",
       "ip_attr": "机房",
@@ -405,7 +495,7 @@
     },
     "ippure:fast:203.175.14.58": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:09:39Z",
+      "checked_at": "2026-08-20T15:46:58Z",
       "full_string": "【🔴 机房|原生】",
       "ip": "203.175.14.58",
       "ip_attr": "机房",
@@ -426,15 +516,37 @@
       "shared_users": "N/A",
       "source": "ippure"
     },
+    "ippure:fast:203.198.38.242": {
+      "checked_at": "2026-08-20T16:02:31Z",
+      "full_string": "【🟢 住宅|原生】",
+      "ip": "203.198.38.242",
+      "ip_attr": "住宅",
+      "ip_src": "原生",
+      "mode": "fast",
+      "pure_score": "13%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
     "ippure:fast:203.198.38.250": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T05:44:15Z",
+      "checked_at": "2026-08-20T16:02:41Z",
       "full_string": "【⚪ 住宅|原生】",
       "ip": "203.198.38.250",
       "ip_attr": "住宅",
       "ip_src": "原生",
       "mode": "fast",
       "pure_score": "2%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
+    "ippure:fast:203.198.38.79": {
+      "checked_at": "2026-08-20T16:02:37Z",
+      "full_string": "【⚪ 住宅|原生】",
+      "ip": "203.198.38.79",
+      "ip_attr": "住宅",
+      "ip_src": "原生",
+      "mode": "fast",
+      "pure_score": "4%",
       "shared_users": "N/A",
       "source": "ippure"
     },
@@ -458,6 +570,18 @@
       "ip_src": "广播",
       "mode": "fast",
       "pure_score": "55%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
+    "ippure:fast:209.9.200.244": {
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:04:11Z",
+      "full_string": "【🟠 住宅|原生】",
+      "ip": "209.9.200.244",
+      "ip_attr": "住宅",
+      "ip_src": "原生",
+      "mode": "fast",
+      "pure_score": "51%",
       "shared_users": "N/A",
       "source": "ippure"
     },
@@ -485,6 +609,17 @@
       "shared_users": "N/A",
       "source": "ippure"
     },
+    "ippure:fast:209.9.202.90": {
+      "checked_at": "2026-08-20T16:04:15Z",
+      "full_string": "【🟡 住宅|原生】",
+      "ip": "209.9.202.90",
+      "ip_attr": "住宅",
+      "ip_src": "原生",
+      "mode": "fast",
+      "pure_score": "36%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
     "ippure:fast:209.9.203.162": {
       "checked_at": "2026-08-20T07:12:59Z",
       "full_string": "【🔴 住宅|原生】",
@@ -496,8 +631,20 @@
       "shared_users": "N/A",
       "source": "ippure"
     },
+    "ippure:fast:209.9.203.181": {
+      "checked_at": "2026-08-20T16:02:20Z",
+      "full_string": "【🟢 住宅|原生】",
+      "ip": "209.9.203.181",
+      "ip_attr": "住宅",
+      "ip_src": "原生",
+      "mode": "fast",
+      "pure_score": "24%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
     "ippure:fast:209.9.203.247": {
-      "checked_at": "2026-08-20T07:15:46Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:04:08Z",
       "full_string": "【🔴 住宅|原生】",
       "ip": "209.9.203.247",
       "ip_attr": "住宅",
@@ -507,8 +654,20 @@
       "shared_users": "N/A",
       "source": "ippure"
     },
+    "ippure:fast:210.186.19.212": {
+      "checked_at": "2026-08-20T15:47:52Z",
+      "full_string": "【⚪ 住宅|原生】",
+      "ip": "210.186.19.212",
+      "ip_attr": "住宅",
+      "ip_src": "原生",
+      "mode": "fast",
+      "pure_score": "3%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
     "ippure:fast:211.20.18.216": {
-      "checked_at": "2026-08-20T07:16:21Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:04:51Z",
       "full_string": "【⚪ 住宅|原生】",
       "ip": "211.20.18.216",
       "ip_attr": "住宅",
@@ -519,7 +678,8 @@
       "source": "ippure"
     },
     "ippure:fast:212.87.195.173": {
-      "checked_at": "2026-08-20T07:10:15Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:47:26Z",
       "full_string": "【🔴 机房|广播】",
       "ip": "212.87.195.173",
       "ip_attr": "机房",
@@ -530,7 +690,8 @@
       "source": "ippure"
     },
     "ippure:fast:218.252.169.86": {
-      "checked_at": "2026-08-20T07:11:02Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:48:12Z",
       "full_string": "【⚪ 住宅|原生】",
       "ip": "218.252.169.86",
       "ip_attr": "住宅",
@@ -541,7 +702,8 @@
       "source": "ippure"
     },
     "ippure:fast:218.252.170.98": {
-      "checked_at": "2026-08-20T07:11:08Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:48:16Z",
       "full_string": "【🟡 住宅|原生】",
       "ip": "218.252.170.98",
       "ip_attr": "住宅",
@@ -552,7 +714,8 @@
       "source": "ippure"
     },
     "ippure:fast:218.252.242.98": {
-      "checked_at": "2026-08-20T07:11:05Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:48:14Z",
       "full_string": "【🔴 住宅|原生】",
       "ip": "218.252.242.98",
       "ip_attr": "住宅",
@@ -585,7 +748,8 @@
       "source": "ippure"
     },
     "ippure:fast:220.246.89.185": {
-      "checked_at": "2026-08-20T07:09:30Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:46:46Z",
       "full_string": "【⚪ 住宅|原生】",
       "ip": "220.246.89.185",
       "ip_attr": "住宅",
@@ -596,7 +760,8 @@
       "source": "ippure"
     },
     "ippure:fast:23.146.72.207": {
-      "checked_at": "2026-08-20T07:43:10Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:50:21Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "23.146.72.207",
       "ip_attr": "机房",
@@ -607,7 +772,8 @@
       "source": "ippure"
     },
     "ippure:fast:23.177.40.49": {
-      "checked_at": "2026-08-20T07:43:23Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:51:04Z",
       "full_string": "【🟡 机房|原生】",
       "ip": "23.177.40.49",
       "ip_attr": "机房",
@@ -619,7 +785,7 @@
     },
     "ippure:fast:23.237.50.27": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:16:29Z",
+      "checked_at": "2026-08-20T16:04:58Z",
       "full_string": "【🟢 机房|原生】",
       "ip": "23.237.50.27",
       "ip_attr": "机房",
@@ -631,7 +797,7 @@
     },
     "ippure:fast:23.237.50.28": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:16:32Z",
+      "checked_at": "2026-08-20T16:05:00Z",
       "full_string": "【🟡 机房|原生】",
       "ip": "23.237.50.28",
       "ip_attr": "机房",
@@ -643,7 +809,7 @@
     },
     "ippure:fast:23.237.50.35": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:16:34Z",
+      "checked_at": "2026-08-20T16:05:02Z",
       "full_string": "【🟢 机房|原生】",
       "ip": "23.237.50.35",
       "ip_attr": "机房",
@@ -655,7 +821,7 @@
     },
     "ippure:fast:23.237.50.36": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:16:37Z",
+      "checked_at": "2026-08-20T16:05:04Z",
       "full_string": "【🟢 机房|原生】",
       "ip": "23.237.50.36",
       "ip_attr": "机房",
@@ -667,7 +833,7 @@
     },
     "ippure:fast:36.227.195.43": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:11:12Z",
+      "checked_at": "2026-08-20T15:48:20Z",
       "full_string": "【🟢 住宅|原生】",
       "ip": "36.227.195.43",
       "ip_attr": "住宅",
@@ -678,7 +844,8 @@
       "source": "ippure"
     },
     "ippure:fast:36.231.64.17": {
-      "checked_at": "2026-08-20T07:09:42Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:47:03Z",
       "full_string": "【⚪ 住宅|原生】",
       "ip": "36.231.64.17",
       "ip_attr": "住宅",
@@ -733,7 +900,8 @@
       "source": "ippure"
     },
     "ippure:fast:42.200.177.101": {
-      "checked_at": "2026-08-20T07:15:55Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:04:24Z",
       "full_string": "【⚪ 住宅|原生】",
       "ip": "42.200.177.101",
       "ip_attr": "住宅",
@@ -744,7 +912,7 @@
       "source": "ippure"
     },
     "ippure:fast:42.200.177.15": {
-      "checked_at": "2026-08-20T05:44:14Z",
+      "checked_at": "2026-08-20T16:04:21Z",
       "full_string": "【🟢 住宅|原生】",
       "ip": "42.200.177.15",
       "ip_attr": "住宅",
@@ -800,7 +968,8 @@
       "source": "ippure"
     },
     "ippure:fast:46.29.163.32": {
-      "checked_at": "2026-08-20T07:10:41Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:47:49Z",
       "full_string": "【🟠 机房|原生】",
       "ip": "46.29.163.32",
       "ip_attr": "机房",
@@ -812,7 +981,7 @@
     },
     "ippure:fast:50.7.252.187": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:10:51Z",
+      "checked_at": "2026-08-20T15:47:56Z",
       "full_string": "【🔴 机房|广播】",
       "ip": "50.7.252.187",
       "ip_attr": "机房",
@@ -823,7 +992,8 @@
       "source": "ippure"
     },
     "ippure:fast:50.7.252.188": {
-      "checked_at": "2026-08-20T07:11:00Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:48:09Z",
       "full_string": "【⚫ 机房|广播】",
       "ip": "50.7.252.188",
       "ip_attr": "机房",
@@ -834,7 +1004,8 @@
       "source": "ippure"
     },
     "ippure:fast:50.7.252.189": {
-      "checked_at": "2026-08-20T07:10:58Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:48:06Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "50.7.252.189",
       "ip_attr": "机房",
@@ -845,7 +1016,8 @@
       "source": "ippure"
     },
     "ippure:fast:58.152.118.247": {
-      "checked_at": "2026-08-20T07:09:33Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:46:47Z",
       "full_string": "【⚪ 住宅|原生】",
       "ip": "58.152.118.247",
       "ip_attr": "住宅",
@@ -856,7 +1028,8 @@
       "source": "ippure"
     },
     "ippure:fast:58.152.58.19": {
-      "checked_at": "2026-08-20T07:09:26Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T15:46:42Z",
       "full_string": "【🟢 住宅|原生】",
       "ip": "58.152.58.19",
       "ip_attr": "住宅",
@@ -901,7 +1074,7 @@
     },
     "ippure:fast:62.164.143.250": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:16:27Z",
+      "checked_at": "2026-08-20T16:04:55Z",
       "full_string": "【🟢 机房|原生】",
       "ip": "62.164.143.250",
       "ip_attr": "机房",
@@ -912,19 +1085,20 @@
       "source": "ippure"
     },
     "ippure:fast:66.90.98.34": {
-      "checked_at": "2026-08-20T07:14:02Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:03:13Z",
       "full_string": "【🟡 机房|广播】",
       "ip": "66.90.98.34",
       "ip_attr": "机房",
       "ip_src": "广播",
       "mode": "fast",
-      "pure_score": "44%",
+      "pure_score": "46%",
       "shared_users": "N/A",
       "source": "ippure"
     },
     "ippure:fast:66.90.98.35": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:15:57Z",
+      "checked_at": "2026-08-20T16:04:26Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "66.90.98.35",
       "ip_attr": "机房",
@@ -936,7 +1110,7 @@
     },
     "ippure:fast:66.90.98.36": {
       "bot_score": "N/A",
-      "checked_at": "2026-08-20T07:15:59Z",
+      "checked_at": "2026-08-20T16:04:29Z",
       "full_string": "【⚫ 机房|广播】",
       "ip": "66.90.98.36",
       "ip_attr": "机房",
@@ -947,7 +1121,8 @@
       "source": "ippure"
     },
     "ippure:fast:66.90.98.37": {
-      "checked_at": "2026-08-20T07:13:33Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:02:58Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "66.90.98.37",
       "ip_attr": "机房",
@@ -958,13 +1133,25 @@
       "source": "ippure"
     },
     "ippure:fast:66.90.98.38": {
-      "checked_at": "2026-08-20T07:13:37Z",
+      "bot_score": "N/A",
+      "checked_at": "2026-08-20T16:03:00Z",
       "full_string": "【🟠 机房|广播】",
       "ip": "66.90.98.38",
       "ip_attr": "机房",
       "ip_src": "广播",
       "mode": "fast",
       "pure_score": "51%",
+      "shared_users": "N/A",
+      "source": "ippure"
+    },
+    "ippure:fast:78.141.233.235": {
+      "checked_at": "2026-08-20T15:47:44Z",
+      "full_string": "【🟡 机房|广播】",
+      "ip": "78.141.233.235",
+      "ip_attr": "机房",
+      "ip_src": "广播",
+      "mode": "fast",
+      "pure_score": "34%",
       "shared_users": "N/A",
       "source": "ippure"
     },
