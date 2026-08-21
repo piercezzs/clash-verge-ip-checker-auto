@@ -1,0 +1,427 @@
+#!/usr/bin/env python3
+"""Repository-owned lifecycle adapter for Local Project Center."""
+
+import hashlib
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.error import URLError
+from urllib.request import urlopen
+
+
+APP = "clash-verge-ip-checker-auto"
+ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_DIR = ROOT / ".runtime"
+VENV_DIR = ROOT / ".venv"
+REQUIREMENTS = ROOT / "requirements.txt"
+PORT = int(os.environ.get("CLASH_CHECKER_PORT", "8080"))
+URL = "http://127.0.0.1:%s" % PORT
+ESSENTIAL_IMPORTS = (
+    "fastapi",
+    "uvicorn",
+    "jinja2",
+    "pydantic",
+    "aiohttp",
+    "playwright",
+    "curl_cffi",
+    "ruamel.yaml",
+    "psutil",
+    "segno",
+)
+
+
+class LifecycleError(RuntimeError):
+    pass
+
+
+def _json(payload):
+    print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+
+
+def _run(command, timeout=15, env=None):
+    return subprocess.run(
+        command,
+        cwd=str(ROOT),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        env=env,
+    )
+
+
+def _listener_pids():
+    if os.name == "nt":
+        command = [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            (
+                "Get-NetTCPConnection -LocalPort %s -State Listen "
+                "-ErrorAction SilentlyContinue | Select-Object "
+                "-ExpandProperty OwningProcess -Unique"
+            ) % PORT,
+        ]
+    else:
+        command = ["lsof", "-tiTCP:%s" % PORT, "-sTCP:LISTEN"]
+    try:
+        completed = _run(command, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    pids = []
+    for line in completed.stdout.splitlines():
+        try:
+            pid = int(line.strip())
+        except ValueError:
+            continue
+        if pid > 0 and pid not in pids:
+            pids.append(pid)
+    return pids
+
+
+def _process_info(pid):
+    if os.name == "nt":
+        script = (
+            "$p=Get-CimInstance Win32_Process -Filter \"ProcessId=%s\"; "
+            "if($p){$p | Select-Object ProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress}"
+        ) % pid
+        try:
+            completed = _run(["powershell", "-NoProfile", "-Command", script], timeout=5)
+            payload = json.loads(completed.stdout or "{}")
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            return {"command": "", "cwd": "", "executable": ""}
+        return {
+            "command": str(payload.get("CommandLine") or ""),
+            "cwd": "",
+            "executable": str(payload.get("ExecutablePath") or ""),
+        }
+    try:
+        command = _run(["ps", "-p", str(pid), "-o", "command="], timeout=5).stdout.strip()
+        cwd_output = _run(["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"], timeout=5).stdout
+        cwd = next((line[1:] for line in cwd_output.splitlines() if line.startswith("n")), "")
+    except (OSError, subprocess.TimeoutExpired):
+        return {"command": "", "cwd": "", "executable": ""}
+    return {"command": command, "cwd": cwd, "executable": command.split(" ", 1)[0]}
+
+
+def _verified_listener_pids(pids):
+    verified = []
+    root_text = str(ROOT.resolve()).lower()
+    venv_text = str(VENV_DIR.resolve()).lower()
+    for pid in pids:
+        info = _process_info(pid)
+        command = info["command"].lower()
+        cwd = info["cwd"].lower()
+        executable = info["executable"].lower()
+        if os.name == "nt":
+            owned = "web.py" in command and (
+                root_text in command or executable.startswith(venv_text)
+            )
+        else:
+            owned = cwd == root_text and "web.py" in command
+        if owned:
+            verified.append(pid)
+    return verified
+
+
+def _read_json_url(path, timeout=1.5):
+    try:
+        with urlopen(URL + path, timeout=timeout) as response:
+            if response.status != 200:
+                return None
+            payload = json.loads(response.read(2 * 1024 * 1024).decode("utf-8"))
+            return payload if isinstance(payload, dict) else None
+    except (OSError, URLError, ValueError):
+        return None
+
+
+def _health():
+    payload = _read_json_url("/api/nodes")
+    if not isinstance(payload, dict):
+        return None
+    if not isinstance(payload.get("nodes"), list) or not isinstance(payload.get("is_running"), bool):
+        return None
+    return {
+        "status": "ok",
+        "app": APP,
+        "activeExecutions": {
+            "known": True,
+            "running": 1 if payload["is_running"] else 0,
+        },
+    }
+
+
+def service_status():
+    pids = _listener_pids()
+    verified = _verified_listener_pids(pids)
+    health = _health()
+    detail = ""
+    if not pids:
+        state = "running_unmanaged" if health else "stopped"
+        if health:
+            detail = "服务可访问，但无法从端口监听器确认进程身份。"
+    elif health and len(verified) == len(pids):
+        state = "running"
+    elif health:
+        state = "running_unmanaged"
+        detail = "服务身份响应正确，但监听进程未全部通过仓库身份校验。"
+    elif verified:
+        state = "unresponsive"
+        detail = "已确认项目进程，但节点检测接口没有正常响应。"
+    else:
+        state = "conflict"
+        detail = "端口 %s 被其他进程占用。" % PORT
+    return {
+        "app": APP,
+        "status": state,
+        "pid": verified[0] if verified else (pids[0] if pids else None),
+        "managed": bool(verified and len(verified) == len(pids)),
+        "detail": detail,
+        "health": health or {},
+    }
+
+
+def _python_supported(command):
+    try:
+        completed = _run(
+            command + ["-c", "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)"],
+            timeout=10,
+        )
+        return completed.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def _system_python():
+    candidates = []
+    if os.name == "nt":
+        candidates.extend((
+            ["py", "-3.12"],
+            ["py", "-3.11"],
+            ["py", "-3.10"],
+            ["py", "-3"],
+            ["python"],
+        ))
+    else:
+        candidates.extend((
+            ["/opt/homebrew/bin/python3.12"],
+            ["/opt/homebrew/bin/python3.11"],
+            ["/opt/homebrew/bin/python3.10"],
+            ["/usr/local/bin/python3.12"],
+            ["/usr/local/bin/python3.11"],
+            ["/usr/local/bin/python3.10"],
+            ["/opt/homebrew/bin/python3"],
+            ["/usr/local/bin/python3"],
+            ["python3"],
+            ["python"],
+        ))
+    seen = set()
+    for command in candidates:
+        executable = shutil.which(command[0]) if not Path(command[0]).is_absolute() else command[0]
+        key = tuple([str(executable or "")] + command[1:])
+        if not executable or key in seen:
+            continue
+        seen.add(key)
+        resolved = [executable] + command[1:]
+        if _python_supported(resolved):
+            return resolved
+    raise LifecycleError("Python 3.10 或更高版本未安装；无法准备节点检测环境。")
+
+
+def _venv_python():
+    return VENV_DIR / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+
+
+def _dependency_fingerprint(venv_python):
+    digest = hashlib.sha256(REQUIREMENTS.read_bytes()).hexdigest()
+    completed = _run(
+        [str(venv_python), "-c", "import sys; print('%s.%s' % sys.version_info[:2])"],
+        timeout=10,
+    )
+    if completed.returncode != 0:
+        raise LifecycleError("无法读取虚拟环境 Python 版本。")
+    return {"requirementsSha256": digest, "python": completed.stdout.strip()}
+
+
+def _environment_healthy(venv_python):
+    imports = ",".join(ESSENTIAL_IMPORTS)
+    import_check = _run(
+        [str(venv_python), "-c", "import importlib; [importlib.import_module(n) for n in %r.split(',')]" % imports],
+        timeout=30,
+    )
+    if import_check.returncode != 0:
+        return False
+    return _run([str(venv_python), "-m", "pip", "check"], timeout=60).returncode == 0
+
+
+def prepare_environment():
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    system_python = _system_python()
+    venv_python = _venv_python()
+    created = False
+    if VENV_DIR.exists() and (not venv_python.is_file() or not _python_supported([str(venv_python)])):
+        current = service_status()
+        if current["status"] in ("running", "unresponsive"):
+            raise LifecycleError("当前服务仍在使用不兼容环境；请先安全停止服务再修复。")
+        backup = RUNTIME_DIR / ("venv-invalid-%s" % datetime.now().strftime("%Y%m%d-%H%M%S"))
+        suffix = 1
+        while backup.exists():
+            backup = RUNTIME_DIR / ("venv-invalid-%s-%s" % (datetime.now().strftime("%Y%m%d-%H%M%S"), suffix))
+            suffix += 1
+        shutil.move(str(VENV_DIR), str(backup))
+    if not venv_python.is_file():
+        print("正在创建 Python 3.10+ 虚拟环境…", file=sys.stderr)
+        completed = _run(system_python + ["-m", "venv", str(VENV_DIR)], timeout=120)
+        if completed.returncode != 0:
+            raise LifecycleError(completed.stderr.strip() or "虚拟环境创建失败。")
+        created = True
+    if not _python_supported([str(venv_python)]):
+        raise LifecycleError("虚拟环境不是 Python 3.10 或更高版本。")
+    fingerprint = _dependency_fingerprint(venv_python)
+    stamp_path = RUNTIME_DIR / "dependencies.json"
+    try:
+        stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        stamp = None
+    healthy = _environment_healthy(venv_python)
+    install_needed = created or stamp != fingerprint or not healthy
+    if install_needed:
+        reason = "新环境" if created else "依赖清单变化或环境不完整"
+        print("正在按需安装依赖（%s）…" % reason, file=sys.stderr)
+        completed = _run(
+            [str(venv_python), "-m", "pip", "install", "-r", str(REQUIREMENTS)],
+            timeout=300,
+        )
+        if completed.returncode != 0:
+            raise LifecycleError(completed.stderr.strip()[-1000:] or "依赖安装失败。")
+        if not _environment_healthy(venv_python):
+            raise LifecycleError("依赖安装后环境检查仍未通过。")
+    stamp_path.write_text(
+        json.dumps(fingerprint, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return {"installed": install_needed, "python": fingerprint["python"]}
+
+
+def _wait_for(expected, timeout):
+    deadline = time.monotonic() + timeout
+    last = service_status()
+    while time.monotonic() < deadline:
+        last = service_status()
+        if last["status"] == expected:
+            return last
+        if last["status"] in ("conflict", "running_unmanaged"):
+            break
+        time.sleep(0.25)
+    raise LifecycleError(last.get("detail") or "服务未在预期时间内进入 %s 状态。" % expected)
+
+
+def start_service():
+    current = service_status()
+    if current["status"] == "running":
+        return current
+    if current["status"] != "stopped":
+        raise LifecycleError(current.get("detail") or "当前状态不允许启动。")
+    prepare_environment()
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    log_path = RUNTIME_DIR / "project-center.log"
+    log_handle = log_path.open("ab")
+    env = os.environ.copy()
+    env["CLASH_CHECKER_HOST"] = "127.0.0.1"
+    env["CLASH_CHECKER_PORT"] = str(PORT)
+    command = [str(_venv_python()), "web.py"]
+    kwargs = {
+        "cwd": str(ROOT),
+        "stdin": subprocess.DEVNULL,
+        "stdout": log_handle,
+        "stderr": subprocess.STDOUT,
+        "env": env,
+    }
+    if os.name == "nt":
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+    else:
+        kwargs["start_new_session"] = True
+    process = subprocess.Popen(command, **kwargs)
+    log_handle.close()
+    (RUNTIME_DIR / "service.json").write_text(
+        json.dumps({
+            "pid": process.pid,
+            "startedAt": datetime.now(timezone.utc).isoformat(),
+            "port": PORT,
+        }, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return _wait_for("running", 20)
+
+
+def _signal_pid(pid, force=False):
+    if os.name == "nt":
+        command = ["taskkill", "/PID", str(pid), "/T"]
+        if force:
+            command.append("/F")
+        _run(command, timeout=10)
+        return
+    os.kill(pid, signal.SIGKILL if force else signal.SIGTERM)
+
+
+def stop_service():
+    current = service_status()
+    if current["status"] == "stopped":
+        return current
+    pids = _listener_pids()
+    verified = _verified_listener_pids(pids)
+    if not pids or len(verified) != len(pids):
+        raise LifecycleError(current.get("detail") or "监听进程身份未通过校验，拒绝停止。")
+    for pid in verified:
+        try:
+            _signal_pid(pid)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        if not _listener_pids():
+            return service_status()
+        time.sleep(0.25)
+    remaining = _listener_pids()
+    still_verified = _verified_listener_pids(remaining)
+    if not remaining or len(still_verified) != len(remaining):
+        raise LifecycleError("监听进程身份在强制停止前发生变化，已拒绝继续。")
+    for pid in still_verified:
+        _signal_pid(pid, force=True)
+    return _wait_for("stopped", 5)
+
+
+def main():
+    action = sys.argv[1] if len(sys.argv) == 2 else ""
+    if action not in ("status", "prepare", "start", "restart", "stop"):
+        raise LifecycleError("用法：project_center_service status|prepare|start|restart|stop")
+    if action == "status":
+        result = service_status()
+    elif action == "prepare":
+        prepared = prepare_environment()
+        result = {"app": APP, "status": "prepared", "managed": False, "health": prepared}
+    elif action == "start":
+        result = start_service()
+    elif action == "stop":
+        result = stop_service()
+    else:
+        stop_service()
+        result = start_service()
+    _json(result)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (LifecycleError, OSError, subprocess.TimeoutExpired) as error:
+        print("ERROR: %s" % error, file=sys.stderr)
+        raise SystemExit(1)

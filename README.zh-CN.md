@@ -71,7 +71,8 @@ API secret 输入框只是备用入口。如果本机 Clash Verge 配置里已�
 ./run_mac.command
 ```
 
-脚本会在需要时创建 `.venv`，安装依赖，启动本地 Web UI，并打开：
+脚本要求 Python 3.10+。仅当 `.venv` 新建、损坏或 `requirements.txt`
+发生变化时才准备依赖；随后启动本地 Web UI，并打开：
 
 ```text
 http://127.0.0.1:8080
@@ -83,7 +84,7 @@ http://127.0.0.1:8080
 run_windows.bat
 ```
 
-脚本会在需要时创建 `.venv`，安装依赖，启动本地 Web UI，并打开：
+Windows 启动器使用相同的环境与依赖指纹检查，随后启动本地 Web UI，并打开：
 
 ```text
 http://127.0.0.1:8080
@@ -110,6 +111,17 @@ http://127.0.0.1:8080
 ```
 
 快速检测模式不需要启动 Playwright Chromium。
+
+本地项目中心直接使用仓库自有的生命周期入口：
+
+```bash
+./scripts/project_center_service status
+./scripts/project_center_service start
+./scripts/project_center_service restart
+./scripts/project_center_service stop
+```
+
+`status` 不会安装依赖。生命周期入口只有在端口、工作目录、命令标记和应用响应均确认属于本仓库服务后，才会停止监听进程。
 
 ## 基本流程
 

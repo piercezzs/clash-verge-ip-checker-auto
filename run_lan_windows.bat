@@ -4,24 +4,13 @@ cd /d "%~dp0"
 
 set "VENV_PYTHON=.venv\Scripts\python.exe"
 
-if not exist "%VENV_PYTHON%" (
-  call :create_venv
-  if errorlevel 1 goto fail
-)
-if not exist "%VENV_PYTHON%" (
-  echo Virtual environment Python not found: %VENV_PYTHON%
-  goto fail
-)
-
-"%VENV_PYTHON%" -m pip install -r requirements.txt
+call scripts\project_center_service.bat stop
+if errorlevel 1 goto fail
+call scripts\project_center_service.bat prepare
 if errorlevel 1 goto fail
 
 set "PORT=%CLASH_CHECKER_PORT%"
 if "%PORT%"=="" set "PORT=8080"
-
-echo Stopping old Clash checker service on port %PORT% if present...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$port=%PORT%; Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { if ($_ -and $_ -ne $PID) { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue } }"
-timeout /t 1 /nobreak >nul
 
 set "LAN_IP=%CLASH_CHECKER_LAN_IP%"
 if "%LAN_IP%"=="" (
@@ -45,23 +34,6 @@ start "" powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File
 if errorlevel 1 goto fail
 pause
 exit /b 0
-
-:create_venv
-echo Creating Python virtual environment...
-where py >nul 2>nul
-if not errorlevel 1 (
-  py -3 -m venv .venv
-  if not errorlevel 1 exit /b 0
-)
-
-where python >nul 2>nul
-if not errorlevel 1 (
-  python -m venv .venv
-  if not errorlevel 1 exit /b 0
-)
-
-echo Failed to create Python virtual environment. Install Python 3 and ensure either py or python is available.
-exit /b 1
 
 :fail
 echo.

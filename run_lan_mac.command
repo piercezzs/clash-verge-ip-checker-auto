@@ -17,25 +17,11 @@ open_when_ready() {
   ) &
 }
 
-if [ ! -x "$VENV_PYTHON" ]; then
-  python3 -m venv .venv
-fi
-
-"$VENV_PYTHON" -m pip install -r requirements.txt
-
 PORT="${CLASH_CHECKER_PORT:-8080}"
 LAN_IP="${CLASH_CHECKER_LAN_IP:-}"
 
-echo "Stopping old Clash checker service on port $PORT if present..."
-OLD_PIDS="$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
-if [ -n "$OLD_PIDS" ]; then
-  echo "$OLD_PIDS" | xargs kill 2>/dev/null || true
-  sleep 1
-  OLD_PIDS="$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
-  if [ -n "$OLD_PIDS" ]; then
-    echo "$OLD_PIDS" | xargs kill -9 2>/dev/null || true
-  fi
-fi
+./scripts/project_center_service stop
+./scripts/project_center_service prepare
 
 if [ -z "$LAN_IP" ]; then
   DEFAULT_IFACE="$(route get default 2>/dev/null | awk '/interface:/{print $2}' || true)"
@@ -69,4 +55,4 @@ fi
 echo "If macOS Firewall asks, allow incoming connections for Python."
 
 open_when_ready "http://127.0.0.1:$PORT/"
-"$VENV_PYTHON" web.py
+exec "$VENV_PYTHON" web.py

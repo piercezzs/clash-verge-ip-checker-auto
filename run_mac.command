@@ -18,22 +18,8 @@ open_when_ready() {
   ) &
 }
 
-echo "Stopping old Clash checker service on port $PORT if present..."
-OLD_PIDS="$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
-if [ -n "$OLD_PIDS" ]; then
-  echo "$OLD_PIDS" | xargs kill 2>/dev/null || true
-  sleep 1
-  OLD_PIDS="$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
-  if [ -n "$OLD_PIDS" ]; then
-    echo "$OLD_PIDS" | xargs kill -9 2>/dev/null || true
-  fi
-fi
-
-if [ ! -x "$VENV_PYTHON" ]; then
-  python3 -m venv .venv
-fi
-
-"$VENV_PYTHON" -m pip install -r requirements.txt
+./scripts/project_center_service stop
+./scripts/project_center_service prepare
 export CLASH_CHECKER_PORT="$PORT"
 open_when_ready "http://127.0.0.1:$PORT/"
-"$VENV_PYTHON" web.py
+exec "$VENV_PYTHON" web.py

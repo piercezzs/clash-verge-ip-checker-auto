@@ -71,7 +71,9 @@ The API secret field is only a fallback. If the secret already exists in the loc
 ./run_mac.command
 ```
 
-The script creates `.venv` if needed, installs dependencies, starts the local web UI, and opens:
+The script requires Python 3.10+, creates or repairs `.venv` when needed, and
+installs dependencies only for a new or unhealthy environment or after
+`requirements.txt` changes. It then starts the local web UI and opens:
 
 ```text
 http://127.0.0.1:8080
@@ -83,7 +85,8 @@ http://127.0.0.1:8080
 run_windows.bat
 ```
 
-The script creates `.venv` if needed, installs dependencies, starts the local web UI, and opens:
+The Windows launcher follows the same environment and dependency-fingerprint
+checks before it starts the local web UI and opens:
 
 ```text
 http://127.0.0.1:8080
@@ -110,6 +113,19 @@ If you use browser-based checks, install the Chromium runtime for Playwright:
 ```
 
 Fast mode does not require launching Playwright Chromium.
+
+Local Project Center uses the repository-owned lifecycle entry directly:
+
+```bash
+./scripts/project_center_service status
+./scripts/project_center_service start
+./scripts/project_center_service restart
+./scripts/project_center_service stop
+```
+
+`status` never installs dependencies. Lifecycle actions stop a listener only
+after its port, working directory, command marker, and application response are
+verified as this repository's service.
 
 ## Basic Workflow
 
