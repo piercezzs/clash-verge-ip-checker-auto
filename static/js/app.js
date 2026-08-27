@@ -22,6 +22,9 @@ function app() {
     loadedCacheTtlDays: 14,
     dedupeRemoved: 0,
     exportedFiles: [],
+    mobileModeAvailable: false,
+    workspaceView: "nodes",
+    expandedExportFile: "",
     isExporting: false,
     isImporting: false,
     isCopyingYaml: false,
@@ -104,17 +107,36 @@ function app() {
       return this.profiles.find((p) => p.uid === this.selectedUid) || null;
     },
 
+    get isLanMode() {
+      const hostname = window.location.hostname.toLowerCase();
+      return !(
+        hostname === "localhost" ||
+        hostname === "0.0.0.0" ||
+        hostname === "::1" ||
+        hostname === "[::1]" ||
+        hostname.startsWith("127.")
+      ) || this.mobileModeAvailable;
+    },
+
+    get showAuxMetric() {
+      const field = this.config.fast_mode ? "shared" : "bot";
+      return this.nodes.some((node) => {
+        const value = String(node[field] || "").trim();
+        return value && value !== "N/A" && value !== "❓";
+      });
+    },
+
     get resultMetaText() {
       if (!this.loadedCheckedDate) return "";
       const checkedAt = this.loadedCheckedAt
         ? this.loadedCheckedAt.replace("T", " ")
         : this.loadedCheckedDate;
-      return `加载 ${this.loadedCacheTtlDays} 天内 IP 结果：${checkedAt}，匹配 ${this.loadedCached}/${this.loadedTotal}`;
+      return `${checkedAt} · 缓存 ${this.loadedCached}/${this.loadedTotal}`;
     },
 
     get dedupeText() {
       if (!this.dedupeRemoved) return "";
-      return `已按出口 IP 去重：${this.rawNodes.length} -> ${this.nodes.length}`;
+      return `去重 ${this.rawNodes.length}→${this.nodes.length}`;
     },
 
     async loadExportedFiles() {
@@ -123,9 +145,19 @@ function app() {
         if (!res.ok) return;
         const data = await res.json();
         this.exportedFiles = data.files || [];
+        this.mobileModeAvailable = this.exportedFiles.some(
+          (file) => Boolean(file.mobile_subscription_url),
+        );
       } catch (_err) {
         this.exportedFiles = [];
+        this.mobileModeAvailable = false;
       }
+    },
+
+    toggleExportDetails(file) {
+      if (!file?.mobile_subscription_url) return;
+      this.expandedExportFile =
+        this.expandedExportFile === file.filename ? "" : file.filename;
     },
 
     formatFileSize(bytes) {
@@ -176,10 +208,9 @@ function app() {
         if (data.checked_date) {
           this.setNodes(data.nodes || []);
           this.applyRecommendedSelection();
-          this.notice = `已加载 ${this.loadedCacheTtlDays} 天内最近 IP 结果 ${data.checked_date}，匹配 ${this.loadedCached}/${this.loadedTotal} 个节点`;
         }
         if (cacheWarning) {
-          this.notice = this.notice ? `${this.notice}；${cacheWarning}` : cacheWarning;
+          this.notice = cacheWarning;
         }
       } catch (err) {
         this.error = `加载缓存失败: ${err.message}`;
@@ -273,7 +304,7 @@ function app() {
           this.runningAction = "";
           this.showProgress = false;
           this.currentNode = "";
-          this.notice = `检测完成：${completed} 个节点；复用 IP 缓存 ${cacheHits} 个，新查询 ${freshQueries} 个（无评分 ${partialResults} 个），失败 ${failures} 个；已选中 ${this.selected.length} 个推荐节点`;
+          this.notice = `完成 ${completed} 个 · 缓存 ${cacheHits} · 新查 ${freshQueries} · 无评分 ${partialResults} · 失败 ${failures} · 已选 ${this.selected.length}`;
           if (cacheWarning) this.notice = `${this.notice}；${cacheWarning}`;
           this.closeSSE();
         } else if (data.type === "stopped") {
@@ -351,6 +382,26 @@ function app() {
         return false;
       }
       return true;
+    },
+
+    nodeTypeText(node) {
+      const values = [node?.type, node?.native]
+        .map((value) => String(value || "").trim())
+        .filter((value) => value && value !== "N/A" && value !== "❓");
+      return values.length ? values.join(" · ") : "—";
+    },
+
+    statusText(node) {
+      const value = String(node?.status || node?.source || "").trim();
+      if (!value || value === "..." || value === "❓") return "待检测";
+      if (value.includes("缓存")) return "缓存";
+      return value.replace(/^♻️\s*/, "");
+    },
+
+    statusClass(node) {
+      return this.statusText(node) === "待检测"
+        ? "node-status pending"
+        : "node-status";
     },
 
     async stopCheck() {
@@ -483,15 +534,18 @@ function app() {
         const existingName = existingNames[0] || `${this.selectedProfile?.name || "当前订阅"}${this.config.output_suffix}`;
         if (this.importStatus === "existing") {
           this.importMessage = existingCount > 1
-            ? `导出文件已覆盖；Clash Verge 中检测到 ${existingCount} 个对应订阅。请保留一个并刷新，删除多余项。`
-            : `导出文件已覆盖；Clash Verge 已有“${existingName}”。请到 Clash Verge 刷新该订阅，不要再次导入。`;
+            ? `已覆盖文件；Clash Verge 有 ${existingCount} 个对应订阅，请保留一个并刷新。`
+            : `已覆盖文件；请在 Clash Verge 刷新“${existingName}”。`;
         } else if (this.importStatus === "unknown") {
-          this.importMessage = data.import_lookup_warning || "导出文件已覆盖，但无法确认 Clash Verge 是否已有对应订阅；为避免重复，本次不提供一键导入。";
+          this.importMessage = data.import_lookup_warning || "已覆盖文件；无法确认是否已导入，本次不提供一键导入。";
         } else {
-          this.importMessage = "未检测到对应 checked 订阅；只需首次导入一次，后续导出请刷新已有订阅。";
+          this.importMessage = "未检测到对应订阅，首次导入即可。";
         }
         await this.loadExportedFiles();
-        this.$refs.exportModal.showModal();
+        this.$nextTick(() => {
+          this.$refs.exportModal.showModal();
+          this.$refs.modalClose?.focus();
+        });
       } catch (err) {
         alert(`导出失败: ${err.message}`);
       } finally {
@@ -509,6 +563,11 @@ function app() {
       link.download = this.exportFilename;
       link.click();
       URL.revokeObjectURL(url);
+    },
+
+    closeExportModal() {
+      this.$refs.exportModal.close();
+      this.$nextTick(() => this.$refs.exportButton?.focus());
     },
 
     async copyText(value) {
@@ -577,7 +636,7 @@ function app() {
       this.isImporting = true;
       this.importStatus = "launched";
       this.importUrl = "";
-      this.importMessage = "已请求 Clash Verge 导入。请在 Clash Verge 中确认；本弹窗不会再次发起导入。";
+      this.importMessage = "已打开 Clash Verge，请确认导入。";
       window.location.href = importUrl;
       setTimeout(() => {
         this.isImporting = false;
