@@ -18,7 +18,7 @@ import segno
 from core.clash_api import ClashController, proxy_endpoints_from_configs
 from desktop.importer import build_clash_import_url, find_matching_profiles
 from desktop.verge_profiles import discover_verge, load_profile_config, sanitize_name
-from schemas import ExportRequest, StartProfileRequest, UpdateNodeRequest
+from schemas import ExportRequest, StartProfileRequest
 from state import state
 from storage.ip_cache import (
     IP_CACHE_TTL_DAYS,
@@ -410,15 +410,6 @@ async def get_nodes():
         "is_running": state.is_running,
         "profile_name": state.profile_name,
     }
-
-
-@router.put("/nodes/{node_id}")
-async def update_node(node_id: int, request: UpdateNodeRequest):
-    for node in state.nodes:
-        if node["id"] == node_id:
-            node["name"] = request.name
-            return {"status": "updated", "node": node}
-    raise HTTPException(status_code=404, detail="节点不存在")
 
 
 @router.delete("/nodes/{node_id}")

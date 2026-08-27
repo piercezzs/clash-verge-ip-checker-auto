@@ -180,11 +180,6 @@ summary:focus-visible,
   color: var(--danger);
 }
 
-.button.primary-text {
-  border-color: #9fd7bc;
-  color: var(--accent);
-}
-
 .button[disabled] {
   border-color: var(--line);
   color: #93a19b;
@@ -618,30 +613,11 @@ details > summary {
 }
 
 .col-actions {
-  width: 118px;
+  width: 72px;
 }
 
 .name-cell {
   font-weight: 650;
-}
-
-.editable {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: text;
-}
-
-.inline-edit {
-  width: 100%;
-  height: 32px;
-  margin: 0;
-  padding: 5px 8px;
-  border-color: #8fc9ac;
-  border-radius: 6px;
-  box-shadow: none;
-  font-size: 12px;
 }
 
 .risk-badge,
@@ -1141,10 +1117,6 @@ dialog::backdrop {
     border-bottom: 1px solid #e6ece8;
     font-size: 13px;
     text-align: left;
-  }
-
-  .editable {
-    white-space: normal;
   }
 
   .actions-cell {

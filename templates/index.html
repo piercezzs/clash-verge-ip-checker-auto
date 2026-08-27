@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clash Verge IP Checker</title>
     <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
-    <link rel="stylesheet" href="/static/css/style.css?v=ui-v2-20260827-3">
+    <link rel="stylesheet" href="/static/css/style.css?v=ui-v2-20260827-4">
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 
@@ -187,13 +187,7 @@
                                 <tr>
                                     <td class="select-cell"><input type="checkbox" :aria-label="`选择 ${node.name}`"
                                             :checked="selected.includes(node.id)" @change="toggleNode(node, $event)"></td>
-                                    <td class="name-cell" data-label="节点">
-                                        <span x-show="editingId !== node.id" x-text="node.name"
-                                            @dblclick="startEdit(node, $event)" class="editable"></span>
-                                        <input x-show="editingId === node.id" x-model="editValue" @blur="saveEdit(node)"
-                                            @keyup.enter="saveEdit(node)" @keyup.escape="cancelEdit()" class="inline-edit"
-                                            :data-edit-node="node.id">
-                                    </td>
+                                    <td class="name-cell" data-label="节点" x-text="node.name"></td>
                                     <td data-label="IP" x-text="node.ip || '—'"></td>
                                     <td data-label="风险"><span class="risk-badge" :class="getRiskClass(node.risk)"
                                             x-text="node.risk || '—'"></span></td>
@@ -205,14 +199,7 @@
                                     <td data-label="状态"><span :class="statusClass(node)" x-text="statusText(node)"></span></td>
                                     <td class="actions-cell" data-label="操作">
                                         <div class="row-actions">
-                                            <button type="button" x-show="editingId !== node.id" class="button quiet"
-                                                @click="startEdit(node, $event)">编辑</button>
-                                            <button type="button" x-show="editingId === node.id" class="button quiet primary-text"
-                                                @mousedown.prevent @click="saveEdit(node)">保存</button>
-                                            <button type="button" x-show="editingId === node.id" class="button quiet"
-                                                @mousedown.prevent @click="cancelEdit()">取消</button>
-                                            <button type="button" x-show="editingId !== node.id" class="button quiet danger"
-                                                @click="deleteNode(node)">删除</button>
+                                            <button type="button" class="button quiet danger" @click="deleteNode(node)">删除</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -290,7 +277,7 @@
             </article>
         </dialog>
     </main>
-    <script src="/static/js/app.js?v=ui-v2-20260827-3"></script>
+    <script src="/static/js/app.js?v=ui-v2-20260827-4"></script>
 </body>
 
 </html>

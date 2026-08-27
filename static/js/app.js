@@ -30,8 +30,6 @@ function app() {
     isCopyingYaml: false,
     isCopyingMobileUrl: false,
     copyingExportedFile: "",
-    editingId: null,
-    editValue: "",
     exportedYaml: "",
     exportFilename: "",
     exportUrl: "",
@@ -460,31 +458,6 @@ function app() {
       }
       const match = String(value).trim().match(/^(\d+(?:\.\d+)?)%$/);
       return match ? Number(match[1]) : null;
-    },
-
-    startEdit(node, event = null) {
-      this.editingId = node.id;
-      this.editValue = node.name;
-      this.$nextTick(() => {
-        const input = event?.target?.closest("tr")?.querySelector(".inline-edit");
-        if (input) input.focus();
-      });
-    },
-
-    async saveEdit(node) {
-      if (this.editValue.trim() && this.editValue !== node.name) {
-        await fetch(`/api/nodes/${node.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: this.editValue }),
-        });
-        node.name = this.editValue;
-      }
-      this.editingId = null;
-    },
-
-    cancelEdit() {
-      this.editingId = null;
     },
 
     async deleteNode(node) {

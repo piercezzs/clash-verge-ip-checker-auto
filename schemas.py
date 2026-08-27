@@ -9,9 +9,6 @@ class StartProfileRequest(BaseModel):
     profile_uid: str
     config: dict[str, object] = Field(default_factory=dict)
 
-class UpdateNodeRequest(BaseModel):
-    name: str
-
 class ExportRequest(BaseModel):
     node_ids: list[int]
     output_suffix: str = "_checked"
