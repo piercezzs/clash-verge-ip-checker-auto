@@ -8,6 +8,16 @@
 
 只建议在自己的电脑或可信局域网使用，不要部署到公网。
 
+## 功能预览
+
+以下截图只使用演示订阅、演示节点和文档保留 IP，不包含真实订阅、节点、密钥或网络信息。
+
+![脱敏后的节点检测与导出界面](docs/assets/screenshots/overview.png)
+
+检测开始前会展示宿主机网络影响，并允许取消操作：
+
+![检测前的宿主机网络影响确认](docs/assets/screenshots/network-impact-confirmation.png)
+
 ## 与原项目的主要差异
 
 - 直接读取 Clash Verge Rev 本机配置，不需要把订阅 YAML 复制到页面里。
@@ -197,7 +207,7 @@ CLASH_CHECKER_PUBLIC_BASE_URL=http://192.168.1.23:8080 ./run_lan_mac.command
 
 - 导出的 YAML 写入 `exports/`。
 - 本机订阅与节点观测保存在 `data/results.sqlite3`。
-- 脱敏后的成功 IP 风险结果保存在 `sync/ip_reputation_cache.json`，只包含 IP、检测源、模式、风险字段和 UTC 检测时间，可在私有仓库中提交用于多设备同步。
+- 成功的 IP 风险结果保存在本机 `sync/ip_reputation_cache.json`；该文件包含出口 IP 和检测时间，已被 Git 忽略。公开仓库只提交空模板 `sync/ip_reputation_cache.example.json`。
 - 临时运行文件可能写入 `.runtime/`。
 
 本仓库已忽略这些路径：
@@ -207,16 +217,18 @@ exports/
 data/
 .runtime/
 .venv/
+sync/ip_reputation_cache.json
 ```
 
 发布或推送 fork 前，建议运行：
 
 ```bash
 git status --short --ignored
-git ls-files exports data .runtime
+git ls-files exports data .runtime sync/ip_reputation_cache.json
+git log --all -- sync/ip_reputation_cache.json
 ```
 
-预期结果：导出的 YAML、本地 SQLite 数据库和临时运行文件应处于 ignored 状态，不应出现在 `git ls-files` 里。`sync/ip_reputation_cache.json` 刻意不被忽略；只有确认仓库为私有且接受同步出口 IP 数据时才应提交。若以后公开仓库，应先将该文件恢复为空模板并清理相关 Git 历史。
+公开前的预期结果：导出的 YAML、本地 SQLite 数据库、临时运行文件和真实 IP 缓存都不应出现在 `git ls-files` 中；`git log` 也不应再显示真实 IP 缓存的旧提交。只清空当前文件或修改 `.gitignore` 不会清除历史，必须另外清理相关 Git 历史，或从经过审计的干净历史创建公开仓库。
 
 不要提交：
 
@@ -226,7 +238,7 @@ git ls-files exports data .runtime
 - `data/results.sqlite3`。
 - API secret、服务商 URL、token，或暴露订阅名称/订阅 URL 的截图。
 
-共享 IP JSON 不包含订阅名称、节点名称、节点配置或密钥。若 Git 合并冲突导致 JSON 无法解析，程序会保留原文件、不覆盖它，并继续把节点结果写入本机 SQLite；需要先手动解决冲突才能恢复共享缓存写入。
+本机 IP 缓存不包含订阅名称、节点名称、节点配置或密钥，但出口 IP 和检测时间仍属于不应公开的本机网络数据。若缓存 JSON 无法解析，程序会保留原文件、不覆盖它，并继续把节点结果写入本机 SQLite。
 
 ## 许可证与归属
 

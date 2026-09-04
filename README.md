@@ -8,6 +8,16 @@ This is a personal adaptation of [tombcato/clash-ip-checker](https://github.com/
 
 Use it on your own machine or a trusted LAN. Do not expose it to the public internet.
 
+## Preview
+
+These screenshots use only demo profiles, demo nodes, and documentation-reserved IP addresses. They contain no real subscriptions, nodes, secrets, or network data.
+
+![Sanitized node checking and export interface](docs/assets/screenshots/overview.png)
+
+Before a check starts, the UI explains the host-wide network impact and lets the user cancel:
+
+![Host network impact confirmation before checking](docs/assets/screenshots/network-impact-confirmation.png)
+
 ## Main Differences From The Original Project
 
 - Reads the local Clash Verge Rev config directly instead of asking you to paste subscription YAML into the page.
@@ -205,7 +215,7 @@ This tool reads local Clash Verge profile metadata and profile YAML contents. Ge
 
 - Exported YAML files are written to `exports/`.
 - Local profile and node observations are stored in `data/results.sqlite3`.
-- Sanitized successful IP reputation results are stored in `sync/ip_reputation_cache.json`. The file contains only the IP, source, mode, reputation fields, and UTC check time, so it can be committed in a private repository for multi-device sync.
+- Successful IP reputation results are stored locally in `sync/ip_reputation_cache.json`. Because the file contains exit IPs and check times, Git ignores it. The public repository keeps only the empty `sync/ip_reputation_cache.example.json` template.
 - Temporary runtime files may be written under `.runtime/`.
 
 These paths are ignored by Git in this repository:
@@ -215,16 +225,18 @@ exports/
 data/
 .runtime/
 .venv/
+sync/ip_reputation_cache.json
 ```
 
 Before publishing or pushing a fork, run:
 
 ```bash
 git status --short --ignored
-git ls-files exports data .runtime
+git ls-files exports data .runtime sync/ip_reputation_cache.json
+git log --all -- sync/ip_reputation_cache.json
 ```
 
-Expected result: generated exports, local SQLite databases, and temporary runtime files should be ignored and should not appear in `git ls-files`. `sync/ip_reputation_cache.json` is intentionally trackable; commit it only when the repository is private and synchronizing exit-IP data is acceptable. Empty the file and clean the related Git history before making the repository public.
+Before publication, generated exports, local SQLite databases, temporary runtime files, and the real IP cache must not appear in `git ls-files`. The `git log` command must not show older commits of the real cache either. Emptying the current file or adding an ignore rule does not clean Git history; rewrite that history or publish from an audited clean history.
 
 Do not commit:
 
@@ -234,7 +246,7 @@ Do not commit:
 - `data/results.sqlite3`.
 - API secrets, provider URLs, tokens, or screenshots that reveal subscription names or URLs.
 
-The shared IP JSON does not contain profile names, node names, node configuration, or secrets. If a Git merge conflict makes the JSON invalid, the app preserves the file without overwriting it and continues saving node results to local SQLite until the conflict is resolved.
+The local IP cache contains no profile names, node names, node configuration, or secrets, but exit IPs and check times are still private host-network data. If the cache JSON is invalid, the app preserves it without overwriting it and continues saving node results to local SQLite.
 
 ## License and Attribution
 
