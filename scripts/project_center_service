@@ -15,13 +15,25 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 
-APP = "clash-verge-ip-checker-auto"
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from runtime_port import (  # noqa: E402
+    FALLBACK_PORTS,
+    PortPreference,
+    PortSelectionError,
+    load_port_preference,
+    save_port_preference,
+    select_available_port,
+)
+
+
+APP = "clash-verge-ip-checker-auto"
 RUNTIME_DIR = ROOT / ".runtime"
 VENV_DIR = ROOT / ".venv"
 REQUIREMENTS = ROOT / "requirements.txt"
-PORT = int(os.environ.get("CLASH_CHECKER_PORT", "8080"))
-URL = "http://127.0.0.1:%s" % PORT
+PORT_STATE = RUNTIME_DIR / "port.json"
 ESSENTIAL_IMPORTS = (
     "fastapi",
     "uvicorn",
@@ -59,7 +71,22 @@ def _run(command, timeout=15, env=None):
     )
 
 
-def _listener_pids():
+def _configured_port():
+    try:
+        return load_port_preference(PORT_STATE)
+    except PortSelectionError as error:
+        raise LifecycleError(str(error)) from error
+
+
+def _local_url(port):
+    return "http://127.0.0.1:%s" % port
+
+
+def _port_is_available(port):
+    return not _listener_pids(port)
+
+
+def _listener_pids(port):
     if os.name == "nt":
         command = [
             "powershell",
@@ -69,10 +96,10 @@ def _listener_pids():
                 "Get-NetTCPConnection -LocalPort %s -State Listen "
                 "-ErrorAction SilentlyContinue | Select-Object "
                 "-ExpandProperty OwningProcess -Unique"
-            ) % PORT,
+            ) % port,
         ]
     else:
-        command = ["lsof", "-tiTCP:%s" % PORT, "-sTCP:LISTEN"]
+        command = ["lsof", "-tiTCP:%s" % port, "-sTCP:LISTEN"]
     try:
         completed = _run(command, timeout=5)
     except (OSError, subprocess.TimeoutExpired):
@@ -133,9 +160,9 @@ def _verified_listener_pids(pids):
     return verified
 
 
-def _read_json_url(path, timeout=1.5):
+def _read_json_url(port, path, timeout=1.5):
     try:
-        with urlopen(URL + path, timeout=timeout) as response:
+        with urlopen(_local_url(port) + path, timeout=timeout) as response:
             if response.status != 200:
                 return None
             payload = json.loads(response.read(2 * 1024 * 1024).decode("utf-8"))
@@ -144,8 +171,8 @@ def _read_json_url(path, timeout=1.5):
         return None
 
 
-def _health():
-    payload = _read_json_url("/api/nodes")
+def _health(port):
+    payload = _read_json_url(port, "/api/nodes")
     if not isinstance(payload, dict):
         return None
     if not isinstance(payload.get("nodes"), list) or not isinstance(payload.get("is_running"), bool):
@@ -160,10 +187,10 @@ def _health():
     }
 
 
-def service_status():
-    pids = _listener_pids()
+def _service_status_for_port(port):
+    pids = _listener_pids(port)
     verified = _verified_listener_pids(pids)
-    health = _health()
+    health = _health(port)
     detail = ""
     if not pids:
         state = "running_unmanaged" if health else "stopped"
@@ -179,7 +206,7 @@ def service_status():
         detail = "已确认项目进程，但节点检测接口没有正常响应。"
     else:
         state = "conflict"
-        detail = "端口 %s 被其他进程占用。" % PORT
+        detail = "端口 %s 被其他进程占用。" % port
     return {
         "app": APP,
         "status": state,
@@ -187,7 +214,27 @@ def service_status():
         "managed": bool(verified and len(verified) == len(pids)),
         "detail": detail,
         "health": health or {},
+        "port": port,
+        "openUrl": _local_url(port) + "/",
     }
+
+
+def service_status():
+    preference = _configured_port()
+    current = _service_status_for_port(preference.port)
+    if current["status"] != "conflict" or preference.explicit:
+        return current
+    try:
+        selected = select_available_port(preference, _port_is_available)
+    except PortSelectionError as error:
+        current["detail"] = "%s %s" % (current["detail"], error)
+        return current
+    available = _service_status_for_port(selected.port)
+    available["detail"] = (
+        "端口 %s 已被其他进程占用；下次启动将自动使用端口 %s。"
+        % (preference.port, selected.port)
+    )
+    return available
 
 
 def _python_supported(command):
@@ -312,11 +359,11 @@ def prepare_environment():
     return {"installed": install_needed, "python": fingerprint["python"]}
 
 
-def _wait_for(expected, timeout):
+def _wait_for(expected, timeout, port):
     deadline = time.monotonic() + timeout
-    last = service_status()
+    last = _service_status_for_port(port)
     while time.monotonic() < deadline:
-        last = service_status()
+        last = _service_status_for_port(port)
         if last["status"] == expected:
             return last
         if last["status"] in ("conflict", "running_unmanaged"):
@@ -326,18 +373,30 @@ def _wait_for(expected, timeout):
 
 
 def start_service():
+    preference = _configured_port()
     current = service_status()
     if current["status"] == "running":
         return current
     if current["status"] != "stopped":
         raise LifecycleError(current.get("detail") or "当前状态不允许启动。")
     prepare_environment()
+    candidate = PortPreference(
+        port=current["port"],
+        explicit=preference.explicit,
+        source=preference.source,
+    )
+    try:
+        selected = select_available_port(candidate, _port_is_available)
+    except PortSelectionError as error:
+        raise LifecycleError(str(error)) from error
+    port = selected.port
+    save_port_preference(PORT_STATE, port)
     RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     log_path = RUNTIME_DIR / "project-center.log"
     log_handle = log_path.open("ab")
     env = os.environ.copy()
     env["CLASH_CHECKER_HOST"] = "127.0.0.1"
-    env["CLASH_CHECKER_PORT"] = str(PORT)
+    env["CLASH_CHECKER_PORT"] = str(port)
     command = [str(_venv_python()), "web.py"]
     kwargs = {
         "cwd": str(ROOT),
@@ -356,11 +415,11 @@ def start_service():
         json.dumps({
             "pid": process.pid,
             "startedAt": datetime.now(timezone.utc).isoformat(),
-            "port": PORT,
+            "port": port,
         }, indent=2) + "\n",
         encoding="utf-8",
     )
-    return _wait_for("running", 20)
+    return _wait_for("running", 20, port)
 
 
 def _signal_pid(pid, force=False):
@@ -373,11 +432,11 @@ def _signal_pid(pid, force=False):
     os.kill(pid, signal.SIGKILL if force else signal.SIGTERM)
 
 
-def stop_service():
-    current = service_status()
+def _stop_service_on_port(port):
+    current = _service_status_for_port(port)
     if current["status"] == "stopped":
         return current
-    pids = _listener_pids()
+    pids = _listener_pids(port)
     verified = _verified_listener_pids(pids)
     if not pids or len(verified) != len(pids):
         raise LifecycleError(current.get("detail") or "监听进程身份未通过校验，拒绝停止。")
@@ -388,22 +447,66 @@ def stop_service():
             pass
     deadline = time.monotonic() + 8
     while time.monotonic() < deadline:
-        if not _listener_pids():
-            return service_status()
+        if not _listener_pids(port):
+            return _service_status_for_port(port)
         time.sleep(0.25)
-    remaining = _listener_pids()
+    remaining = _listener_pids(port)
     still_verified = _verified_listener_pids(remaining)
     if not remaining or len(still_verified) != len(remaining):
         raise LifecycleError("监听进程身份在强制停止前发生变化，已拒绝继续。")
     for pid in still_verified:
         _signal_pid(pid, force=True)
-    return _wait_for("stopped", 5)
+    return _wait_for("stopped", 5, port)
+
+
+def stop_service():
+    current = service_status()
+    if current["status"] == "stopped":
+        return current
+    return _stop_service_on_port(current["port"])
+
+
+def prepare_direct_launch():
+    preference = _configured_port()
+    current = _service_status_for_port(preference.port)
+    if current["status"] in ("running", "unresponsive"):
+        if not current["managed"]:
+            raise LifecycleError(current.get("detail") or "服务身份未通过校验，拒绝停止。")
+        _stop_service_on_port(preference.port)
+    elif current["status"] == "running_unmanaged":
+        raise LifecycleError(current.get("detail") or "检测到未纳管服务，拒绝重复启动。")
+    elif current["status"] == "conflict" and preference.explicit:
+        raise LifecycleError(current.get("detail") or "显式指定端口已被占用。")
+
+    try:
+        selected = select_available_port(preference, _port_is_available)
+    except PortSelectionError as error:
+        raise LifecycleError(str(error)) from error
+    save_port_preference(PORT_STATE, selected.port)
+    prepare_environment()
+
+    refreshed = PortPreference(
+        port=selected.port,
+        explicit=preference.explicit,
+        source=selected.source,
+    )
+    try:
+        selected = select_available_port(refreshed, _port_is_available)
+    except PortSelectionError as error:
+        raise LifecycleError(str(error)) from error
+    save_port_preference(PORT_STATE, selected.port)
+    return selected.port
 
 
 def main():
     action = sys.argv[1] if len(sys.argv) == 2 else ""
-    if action not in ("status", "prepare", "start", "restart", "stop"):
-        raise LifecycleError("用法：project_center_service status|prepare|start|restart|stop")
+    if action not in ("status", "prepare", "start", "restart", "stop", "launch-port"):
+        raise LifecycleError(
+            "用法：project_center_service status|prepare|start|restart|stop|launch-port"
+        )
+    if action == "launch-port":
+        print(prepare_direct_launch())
+        return
     if action == "status":
         result = service_status()
     elif action == "prepare":

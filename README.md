@@ -37,8 +37,9 @@ Use it on your own machine or a trusted LAN. Do not expose it to the public inte
 - It does not call Clash Verge internal Tauri IPC.
 - It does not automatically replace or activate the current subscription.
 - The imported checked subscription must be reviewed and enabled manually in Clash Verge.
-- During checking, it must use Clash External Controller to temporarily change Clash mode and selected node. The tool attempts to restore the previous mode after the run.
-- When checking a non-current profile with temporary loading enabled, it temporarily reloads the Clash core config and then attempts to restore the runtime config.
+- Before checking, the UI verifies the External Controller and shows a confirmation dialog describing the host-wide network impact.
+- During checking, it uses Clash External Controller to temporarily change Clash mode and selected nodes. Completion, stop, and error paths restore the previous selected proxies and mode before releasing the task lock.
+- When checking a non-current profile with temporary loading enabled, it temporarily reloads the Clash core config, then restores the runtime config, selected proxies, and mode in that order.
 
 The final activation step stays in Clash Verge. Enabling or replacing a subscription changes real traffic routing, so this tool does not do it automatically.
 
@@ -73,7 +74,11 @@ The API secret field is only a fallback. If the secret already exists in the loc
 
 The script requires Python 3.10+, creates or repairs `.venv` when needed, and
 installs dependencies only for a new or unhealthy environment or after
-`requirements.txt` changes. It then starts the local web UI and opens:
+`requirements.txt` changes. It then starts the local web UI. Port 8080 remains
+the default; when it is occupied by another program, the launcher selects the
+first free port in `18080-18120`, stores it in ignored local runtime state, and
+reuses it on later launches. The terminal prints and opens the actual URL, for
+example:
 
 ```text
 http://127.0.0.1:8080
@@ -85,8 +90,9 @@ http://127.0.0.1:8080
 run_windows.bat
 ```
 
-The Windows launcher follows the same environment and dependency-fingerprint
-checks before it starts the local web UI and opens:
+The Windows launcher follows the same environment, dynamic-port, and
+dependency-fingerprint checks before it starts the local web UI and opens the
+actual selected URL, for example:
 
 ```text
 http://127.0.0.1:8080
@@ -100,7 +106,8 @@ python3 -m venv .venv
 .venv/bin/python web.py
 ```
 
-Open:
+The manual entry uses the same persisted port selection. Open the URL printed
+by the process, for example:
 
 ```text
 http://127.0.0.1:8080
@@ -127,6 +134,10 @@ Local Project Center uses the repository-owned lifecycle entry directly:
 after its port, working directory, command marker, and application response are
 verified as this repository's service.
 
+Set `CLASH_CHECKER_PORT` to require one specific port. An explicit port is never
+silently replaced; startup fails safely when that port belongs to another
+process. Automatic fallback applies only when the variable is unset.
+
 ## Basic Workflow
 
 1. Start Clash Verge Rev.
@@ -134,7 +145,7 @@ verified as this repository's service.
 3. Start this tool.
 4. Pick a supported Remote or Local main profile.
 5. Keep `proxy group` as `auto` first.
-6. Click `Check current content`.
+6. Click `Switch and check`, review the network-impact summary, and continue only when other host tasks can tolerate an IP change.
 7. If auto proxy-group detection fails, enter the real Clash proxy group name, such as `GLOBAL`, `Proxy`, `PROXY`, or the selector name used by your profile.
 8. Review the checked node list and selected nodes.
 9. Click `Export selected`.
@@ -175,6 +186,9 @@ If auto-detection chooses the wrong address, set it manually before starting:
 ```bash
 CLASH_CHECKER_PUBLIC_BASE_URL=http://192.168.1.23:8080 ./run_lan_mac.command
 ```
+
+When setting `CLASH_CHECKER_PUBLIC_BASE_URL` manually, its port must match the
+selected service port. Set both variables when a fixed LAN address is required.
 
 Important LAN boundaries:
 

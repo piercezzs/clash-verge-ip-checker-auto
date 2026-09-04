@@ -17,11 +17,9 @@ open_when_ready() {
   ) &
 }
 
-PORT="${CLASH_CHECKER_PORT:-8080}"
 LAN_IP="${CLASH_CHECKER_LAN_IP:-}"
 
-./scripts/project_center_service stop
-./scripts/project_center_service prepare
+PORT="$(./scripts/project_center_service launch-port)"
 
 if [ -z "$LAN_IP" ]; then
   DEFAULT_IFACE="$(route get default 2>/dev/null | awk '/interface:/{print $2}' || true)"

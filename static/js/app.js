@@ -5,8 +5,14 @@ function app() {
     selectedUid: "",
     error: "",
     notice: "",
+    isInitializing: true,
     isRunning: false,
     runningAction: "",
+    isPreflighting: false,
+    preflightAction: "",
+    checkPlan: null,
+    pendingRefreshRemote: false,
+    checkOpener: null,
     showProgress: false,
     progress: 0,
     total: 0,
@@ -56,17 +62,24 @@ function app() {
         "剩余,重置,到期,有效期,官网,网址,更新,公告,建议,新用户,无法订阅,邀请码,收藏,尝试,com",
     },
 
-    async init() {
-      window.addEventListener("beforeunload", () => this.closeSSE());
+    async initialize() {
+      window.addEventListener("beforeunload", (event) => {
+        if (!this.isRunning) return;
+        event.preventDefault();
+        event.returnValue = "";
+      });
+      window.addEventListener("pagehide", () => this.closeSSE());
       this.$watch("selectedUid", async () => {
-        if (!this.isRunning) await this.loadProfileResults();
+        if (!this.isInitializing && !this.isRunning) await this.loadProfileResults();
       });
       this.$watch("config.fast_mode", async () => {
-        if (!this.isRunning) await this.loadProfileResults();
+        if (!this.isInitializing && !this.isRunning) await this.loadProfileResults();
       });
       await this.discover();
-      await this.loadProfileResults();
+      const resumed = this.isRunning ? await this.resumeRunningTask() : false;
+      if (!resumed) await this.loadProfileResults();
       await this.loadExportedFiles();
+      this.isInitializing = false;
     },
 
     async discover() {
@@ -83,9 +96,19 @@ function app() {
         this.config.app_home = data.app_home || this.config.app_home;
         this.config.clash_api_url = data.controller_url;
         this.controllerSecretKnown = Boolean(data.has_controller_secret);
+        const activeTask = data.active_task || {};
+        this.isRunning = Boolean(activeTask.is_running);
+        this.runningAction = this.isRunning ? this.actionForPhase(activeTask.phase) : "";
+        this.progress = Number(activeTask.progress) || 0;
+        this.total = Number(activeTask.total) || 0;
+        this.currentNode = activeTask.current_node || "";
+        this.showProgress = this.isRunning;
         const current = this.supportedProfiles.find((p) => p.is_current);
         const first = this.supportedProfiles[0];
-        const nextUid = current?.uid || first?.uid || "";
+        const activeProfile = this.supportedProfiles.find(
+          (profile) => profile.uid === activeTask.profile_uid,
+        );
+        const nextUid = activeProfile?.uid || current?.uid || first?.uid || "";
         this.selectedUid = nextUid;
         if (data.issues?.length) this.notice = data.issues.join("；");
       } catch (err) {
@@ -103,6 +126,27 @@ function app() {
 
     get selectedProfile() {
       return this.profiles.find((p) => p.uid === this.selectedUid) || null;
+    },
+
+    get controllerStateClass() {
+      if (this.context?.controller_connected) return "ready";
+      if (this.context?.running) return "warning";
+      return "idle";
+    },
+
+    get controllerStateText() {
+      if (this.context?.controller_connected) {
+        const mode = String(this.context.controller_mode || "").trim();
+        return mode ? `Controller 已连接 · ${mode}` : "Controller 已连接";
+      }
+      if (this.context?.running) return "已检测到 Clash Verge · Controller 不可用";
+      return "未检测到可用的 Clash Controller";
+    },
+
+    actionForPhase(phase) {
+      if (phase === "stopping") return "stopping";
+      if (phase === "restoring") return "restoring";
+      return "current";
     },
 
     get isLanMode() {
@@ -165,6 +209,33 @@ function app() {
       return `${(size / 1024 / 1024).toFixed(1)} MB`;
     },
 
+    async resumeRunningTask() {
+      try {
+        const res = await fetch("/api/nodes");
+        if (!res.ok) return false;
+        const data = await res.json();
+        if (!data.is_running) {
+          this.isRunning = false;
+          this.runningAction = "";
+          this.showProgress = false;
+          return false;
+        }
+        this.isRunning = true;
+        this.runningAction = this.actionForPhase(data.phase);
+        this.progress = Number(data.progress) || 0;
+        this.total = Number(data.total) || 0;
+        this.currentNode = data.current_node || "";
+        this.showProgress = true;
+        this.setNodes(data.nodes || []);
+        this.applyRecommendedSelection();
+        this.connectSSE();
+        return true;
+      } catch (err) {
+        this.error = `恢复任务状态失败: ${err.message}`;
+        return false;
+      }
+    },
+
     async loadProfileResults() {
       if (!this.selectedUid || this.isRunning) return;
       this.error = "";
@@ -196,6 +267,18 @@ function app() {
           return;
         }
         const data = await res.json();
+        if (data.is_running) {
+          this.isRunning = true;
+          this.runningAction = this.actionForPhase(data.phase);
+          this.progress = Number(data.progress) || 0;
+          this.total = Number(data.total) || 0;
+          this.currentNode = data.current_node || "";
+          this.showProgress = true;
+          this.setNodes(data.nodes || []);
+          this.applyRecommendedSelection();
+          this.connectSSE();
+          return;
+        }
         this.total = data.total || this.nodes.length;
         this.loadedCheckedDate = data.checked_date || "";
         this.loadedCheckedAt = data.checked_at || "";
@@ -215,10 +298,70 @@ function app() {
       }
     },
 
-    async startCheck(refreshRemote = false) {
-      if (!this.selectedUid || this.isRunning) return;
+    async startCheck(refreshRemote = false, opener = null) {
+      if (!this.selectedUid || this.isRunning || this.isPreflighting) return;
       this.error = "";
       this.notice = "";
+      this.isPreflighting = true;
+      this.preflightAction = refreshRemote ? "refresh" : "current";
+      this.checkOpener = opener;
+
+      try {
+        const runConfig = {
+          ...this.config,
+          source: "ippure",
+          fallback: false,
+          refresh_remote: Boolean(refreshRemote),
+        };
+        const res = await fetch("/api/preflight-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            app_home: this.config.app_home,
+            profile_uid: this.selectedUid,
+            config: runConfig,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          this.error = err.detail || "预检失败";
+          return;
+        }
+        this.checkPlan = await res.json();
+        this.pendingRefreshRemote = Boolean(refreshRemote);
+        this.$nextTick(() => {
+          this.$refs.checkConfirmModal.showModal();
+          this.$refs.checkCancel?.focus();
+        });
+      } catch (err) {
+        this.error = `预检失败: ${err.message}`;
+      } finally {
+        this.isPreflighting = false;
+        this.preflightAction = "";
+      }
+    },
+
+    closeCheckConfirm(returnFocus = true) {
+      if (this.$refs.checkConfirmModal?.open) this.$refs.checkConfirmModal.close();
+      this.checkPlan = null;
+      this.pendingRefreshRemote = false;
+      if (returnFocus) {
+        this.$nextTick(() => this.checkOpener?.focus());
+      }
+    },
+
+    confirmStartCheck() {
+      if (!this.checkPlan || this.isRunning) return;
+      const refreshRemote = this.pendingRefreshRemote;
+      if (this.$refs.checkConfirmModal?.open) this.$refs.checkConfirmModal.close();
+      this.checkPlan = null;
+      this.pendingRefreshRemote = false;
+      this.executeCheck(refreshRemote);
+    },
+
+    async executeCheck(refreshRemote) {
+      if (!this.selectedUid || this.isRunning) return;
+      this.isRunning = true;
       this.progress = 0;
       this.setNodes([]);
       this.selected = [];
@@ -240,6 +383,7 @@ function app() {
           source: "ippure",
           fallback: false,
           refresh_remote: Boolean(refreshRemote),
+          impact_confirmed: true,
         };
         const res = await fetch("/api/start-profile", {
           method: "POST",
@@ -256,6 +400,7 @@ function app() {
           this.isRunning = false;
           this.runningAction = "";
           this.showProgress = false;
+          this.$nextTick(() => this.checkOpener?.focus());
           return;
         }
         const data = await res.json();
@@ -272,11 +417,13 @@ function app() {
         this.setNodes(nodesData.nodes || []);
         this.applyRecommendedSelection();
         this.connectSSE();
+        this.checkOpener = null;
       } catch (err) {
         this.isRunning = false;
         this.runningAction = "";
         this.showProgress = false;
         this.error = `请求失败: ${err.message}`;
+        this.$nextTick(() => this.checkOpener?.focus());
       }
     },
 
@@ -291,6 +438,12 @@ function app() {
           this.upsertNode(data.node);
         } else if (data.type === "message") {
           this.notice = data.message;
+        } else if (data.type === "stopping") {
+          this.runningAction = "stopping";
+          this.notice = data.message || "正在停止检测";
+        } else if (data.type === "restoring") {
+          this.runningAction = "restoring";
+          this.notice = data.message || "正在恢复 Clash 网络状态";
         } else if (data.type === "complete") {
           const completed = data.total || this.total || this.progress;
           const cacheHits = data.cache_hits || 0;
@@ -310,6 +463,7 @@ function app() {
           this.runningAction = "";
           this.showProgress = false;
           this.currentNode = "已停止";
+          this.notice = data.message || "检测已停止，Clash 网络状态已恢复";
           this.closeSSE();
         } else if (data.type === "error") {
           this.isRunning = false;
@@ -403,11 +557,21 @@ function app() {
     },
 
     async stopCheck() {
+      if (!this.isRunning || this.runningAction === "stopping" || this.runningAction === "restoring") return;
+      this.error = "";
+      const previousAction = this.runningAction;
+      this.runningAction = "stopping";
       try {
-        await fetch("/api/stop", { method: "POST" });
-        this.isRunning = false;
-        this.runningAction = "";
+        const res = await fetch("/api/stop", { method: "POST" });
+        if (!res.ok) {
+          const data = await res.json();
+          this.runningAction = previousAction;
+          this.error = data.detail || "停止失败";
+          return;
+        }
+        this.notice = "正在停止检测；恢复 Clash 网络状态完成前不能启动新任务";
       } catch (err) {
+        this.runningAction = previousAction;
         this.error = `停止失败: ${err.message}`;
       }
     },

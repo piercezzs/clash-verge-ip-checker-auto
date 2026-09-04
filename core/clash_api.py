@@ -144,7 +144,7 @@ class ClashController:
         """Fetches all proxies."""
         try:
              async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.api_url}/proxies", headers=self.headers) as resp:
+                async with session.get(f"{self.api_url}/proxies", headers=self.headers, timeout=5) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         return data.get('proxies', {})

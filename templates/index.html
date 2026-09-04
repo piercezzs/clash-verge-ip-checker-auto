@@ -6,18 +6,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clash Verge IP Checker</title>
     <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
-    <link rel="stylesheet" href="/static/css/style.css?v=ui-v2-20260827-4">
+    <link rel="stylesheet" href="/static/css/style.css?v=ui-v2-20260904-3">
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 
 <body>
-    <main class="app-shell" x-data="app()" x-init="init()" x-cloak>
+    <main class="app-shell" x-data="app()" x-init="initialize()" x-cloak>
         <header class="app-header">
             <div class="brand-row">
                 <h1>Clash Verge IP Checker</h1>
                 <span class="mode-badge" :class="isLanMode ? 'lan' : 'local'" x-text="isLanMode ? 'LAN' : '本机'"></span>
             </div>
-            <button class="button quiet header-refresh" type="button" @click="discover" :disabled="isRunning">刷新订阅</button>
+            <button class="button quiet header-refresh" type="button" @click="discover"
+                :disabled="isRunning || isPreflighting">刷新状态</button>
         </header>
 
         <section class="control-card" aria-labelledby="control-title">
@@ -48,31 +49,35 @@
                 </label>
 
                 <div class="run-actions" aria-label="检测操作">
-                    <button class="button quiet" type="button" @click="startCheck(true)"
+                    <button class="button quiet" type="button" @click="startCheck(true, $event.currentTarget)"
                         x-show="selectedProfile && selectedProfile.type === 'remote'"
-                        :disabled="isRunning || !selectedUid" :aria-busy="runningAction === 'refresh'">
-                        <span x-text="runningAction === 'refresh' ? '刷新中' : '刷新并检测'"></span>
+                        :disabled="isRunning || isPreflighting || !selectedUid"
+                        :aria-busy="preflightAction === 'refresh' || runningAction === 'refresh'">
+                        <span x-text="preflightAction === 'refresh' ? '正在预检' : (runningAction === 'refresh' ? '检测中' : '刷新并切换检测')"></span>
                     </button>
-                    <button class="button primary" type="button" @click="startCheck(false)"
-                        :disabled="isRunning || !selectedUid" :aria-busy="runningAction === 'current'">
-                        <span x-text="runningAction === 'current' ? '检测中' : '检测当前'"></span>
+                    <button class="button primary" type="button" @click="startCheck(false, $event.currentTarget)"
+                        :disabled="isRunning || isPreflighting || !selectedUid"
+                        :aria-busy="preflightAction === 'current' || runningAction === 'current'">
+                        <span x-text="preflightAction === 'current' ? '正在预检' : (runningAction === 'current' ? '检测中' : '切换并检测')"></span>
                     </button>
-                    <button class="button danger quiet" type="button" @click="stopCheck" x-show="isRunning">停止</button>
+                    <button class="button danger quiet" type="button" @click="stopCheck" x-show="isRunning"
+                        :disabled="runningAction === 'stopping' || runningAction === 'restoring'"
+                        x-text="runningAction === 'restoring' ? '正在恢复' : (runningAction === 'stopping' ? '正在停止' : '停止并恢复')"></button>
                 </div>
             </div>
 
             <div class="control-meta" aria-live="polite">
-                <span class="run-state" :class="context?.running ? 'ready' : 'idle'">
+                <span class="run-state" :class="controllerStateClass">
                     <i aria-hidden="true"></i>
-                    <span x-text="context?.running ? '运行中' : '未检测到进程'"></span>
+                    <span x-text="controllerStateText"></span>
                 </span>
                 <span x-show="loadedCheckedDate" x-text="`最近 ${loadedCheckedDate}`"></span>
                 <span x-show="loadedCheckedDate" x-text="`缓存 ${loadedCached}/${loadedTotal}`"></span>
                 <span x-show="loadedCheckedDate" x-text="`${loadedCacheTtlDays} 天缓存`"></span>
                 <span class="source-note" x-show="selectedProfile && selectedProfile.type === 'remote'">
-                    刷新并检测会读取远程最新配置，不覆盖原文件
+                    检测会临时切换本机 Clash；刷新模式读取远程最新配置但不覆盖原文件
                 </span>
-                <span class="source-note" x-show="selectedProfile && selectedProfile.type === 'local'">本地订阅仅检测当前内容</span>
+                <span class="source-note" x-show="selectedProfile && selectedProfile.type === 'local'">检测会临时切换本机 Clash</span>
             </div>
 
             <template x-if="notice">
@@ -210,8 +215,9 @@
                 <div class="empty-state" x-show="nodes.length === 0">
                     <strong x-text="isRunning ? '正在读取节点' : '尚无检测结果'"></strong>
                     <span x-text="isRunning ? '结果会在检测中逐步出现' : '选择订阅后开始检测'"></span>
-                    <button class="button primary" type="button" x-show="!isRunning" @click="startCheck(false)"
-                        :disabled="!selectedUid">检测当前</button>
+                    <button class="button primary" type="button" x-show="!isRunning"
+                        @click="startCheck(false, $event.currentTarget)"
+                        :disabled="isPreflighting || !selectedUid">切换并检测</button>
                 </div>
             </div>
 
@@ -247,6 +253,42 @@
             </div>
         </section>
 
+        <dialog x-ref="checkConfirmModal" aria-labelledby="check-confirm-title"
+            aria-describedby="check-confirm-description" @cancel.prevent="closeCheckConfirm">
+            <article class="check-dialog">
+                <header>
+                    <div>
+                        <span class="warning-mark" aria-hidden="true">!</span>
+                        <div>
+                            <h3 id="check-confirm-title">检测将临时切换本机代理</h3>
+                            <p id="check-confirm-description">确认当前没有不能中断或更换出口 IP 的后台任务。</p>
+                        </div>
+                    </div>
+                </header>
+                <div class="check-dialog-body">
+                    <dl class="impact-summary">
+                        <div><dt>订阅</dt><dd x-text="checkPlan?.profile?.name || '—'"></dd></div>
+                        <div><dt>检测节点</dt><dd x-text="checkPlan ? `${checkPlan.node_count} 个` : '—'"></dd></div>
+                        <div><dt>代理组</dt><dd x-text="checkPlan?.selector || '—'"></dd></div>
+                        <div><dt>当前状态</dt><dd x-text="checkPlan ? `${checkPlan.current_mode} · ${checkPlan.current_proxy}` : '—'"></dd></div>
+                    </dl>
+                    <ul class="impact-warnings">
+                        <template x-for="warning in (checkPlan?.warnings || [])" :key="warning">
+                            <li x-text="warning"></li>
+                        </template>
+                    </ul>
+                    <p class="message warning" x-show="isLanMode">
+                        当前为 LAN 访问：受影响的是运行本服务那台主机的 Clash Verge，不是浏览器所在设备。
+                    </p>
+                </div>
+                <footer class="dialog-actions">
+                    <button x-ref="checkCancel" class="button quiet" type="button" @click="closeCheckConfirm">取消</button>
+                    <button class="button primary" type="button" @click="confirmStartCheck"
+                        :disabled="isRunning" x-text="pendingRefreshRemote ? '继续刷新并切换' : '继续切换并检测'"></button>
+                </footer>
+            </article>
+        </dialog>
+
         <dialog x-ref="exportModal" @cancel.prevent="closeExportModal">
             <article class="export-dialog">
                 <header>
@@ -277,7 +319,7 @@
             </article>
         </dialog>
     </main>
-    <script src="/static/js/app.js?v=ui-v2-20260827-4"></script>
+    <script src="/static/js/app.js?v=ui-v2-20260904-3"></script>
 </body>
 
 </html>

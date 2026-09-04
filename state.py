@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, List, Optional
 from core.ip_checker import IPChecker
 
@@ -6,6 +7,9 @@ class AppState:
         self.checker = IPChecker(headless=True)
         self.task_id: Optional[str] = None
         self.is_running: bool = False
+        self.phase: str = "idle"
+        self.stop_requested: bool = False
+        self.run_task: Optional[asyncio.Task[None]] = None
         self.nodes: List[Dict] = []
         self.original_yaml: Dict = {}
         self.app_home: str = ""

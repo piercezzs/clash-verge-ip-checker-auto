@@ -7,12 +7,14 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import os
 import sys
+from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from routers.api import router as api_router
 from routers.views import router as views_router
+from runtime_port import load_port_preference, save_port_preference, select_available_port
 
 from contextlib import asynccontextmanager
 from state import state
@@ -45,7 +47,10 @@ if __name__ == "__main__":
     import uvicorn
 
     host = os.environ.get("CLASH_CHECKER_HOST", "127.0.0.1")
-    port = int(os.environ.get("CLASH_CHECKER_PORT", "8080"))
+    port_state = Path(__file__).resolve().parent / ".runtime" / "port.json"
+    selected_port = select_available_port(load_port_preference(port_state))
+    port = selected_port.port
+    save_port_preference(port_state, port)
     public_base_url = os.environ.get("CLASH_CHECKER_PUBLIC_BASE_URL", "").strip()
     local_url = f"http://127.0.0.1:{port}"
 

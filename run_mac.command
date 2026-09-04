@@ -2,7 +2,6 @@
 set -e
 cd "$(dirname "$0")"
 
-PORT="${CLASH_CHECKER_PORT:-8080}"
 VENV_PYTHON=".venv/bin/python"
 
 open_when_ready() {
@@ -18,8 +17,7 @@ open_when_ready() {
   ) &
 }
 
-./scripts/project_center_service stop
-./scripts/project_center_service prepare
+PORT="$(./scripts/project_center_service launch-port)"
 export CLASH_CHECKER_PORT="$PORT"
 open_when_ready "http://127.0.0.1:$PORT/"
 exec "$VENV_PYTHON" web.py
